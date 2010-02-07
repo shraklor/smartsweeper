@@ -27,9 +27,9 @@ from neural_network import *
 from agent import *
 
 def main():
-    w = 30
-    h = 16
-    m = 99
+    w = 10#30
+    h = 10#16
+    m = 10#99
 
     # create your game board
     game = Game(w, h, m, tile_size = 32)

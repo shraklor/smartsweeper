@@ -38,8 +38,8 @@ class Human:
         input = 25
         self.nn = NeuralNet([25,12,6])
         self.name2num_dict = {}
-        names = "_012345678fime"
-        for i in range(len(names)):
+        names = "i012345678fme_"
+        for i in range(-1, len(names) - 1):
             self.name2num_dict[names[i]] = i
 
     def clearMoves(self):
@@ -52,23 +52,22 @@ class Human:
         return (x, y)
 
     def act(self):
-
+        cleared = 0
         self.old_pos = self.pos
         self.pos = self.mouse2Grid(pygame.mouse.get_pos())
         x, y = self.pos
 
-        area = [(x-1, y-1), (x, y-1), (x+1, y-1),
-                (x-1, y  ), (x, y  ), (x+1, y  ),
-                (x-1, y+1), (x, y+1), (x+1, y+1)]
-
-        big = [(x-2, y-2), (x-1, y-2), (x  , y-2), (x+1, y-2), (x+2, y-2),
-               (x-2, y-1), (x-1, y-1), (x  , y-1), (x+1, y-1), (x+2, y-1),
-               (x-2, y  ), (x-1, y  ), (x  , y  ), (x+1, y  ), (x+2, y  ),
-               (x-2, y+1), (x-1, y+1), (x  , y+1), (x+1, y+1), (x+2, y+1),
-               (x-2, y+2), (x-1, y+2), (x  , y+2), (x+1, y+2), (x+2, y+2)]
-
-        if self.nn.layers_list[0] == 25:
-            area = big
+        #area = [(x-1, y-1), (x, y-1), (x+1, y-1),
+         #       (x-1, y  ), (x, y  ), (x+1, y  ),
+          #       (x-1, y+1), (x, y+1), (x+1, y+1)]
+               
+        area = []
+        n = int(math.sqrt(self.nn.layers_list[0]))
+        for j in range(n + 1):
+            b = y + j - n + 1
+            for i in range(n + 1):
+                a = x + i - n + 1
+                area.append((a, b))
 
         input = []
         for pos in area:
@@ -78,12 +77,14 @@ class Human:
                 input.append(num)
             except: input.append(0)
 
+        action = 0
         output = [0,0,0,0,0,0]
 
         # check for events
         for event in pygame.event.get() :
             if event.type == QUIT:
                 self.game.running = False
+                pygame.quit()
             if event.type == KEYDOWN and event.key == K_ESCAPE:
                 self.game.running = False
             if event.type == KEYDOWN and event.key == K_r:
@@ -95,10 +96,10 @@ class Human:
                 if event.button == 1:
                     cleared = self.game.dig(self.pos)
                     if cleared > 0:
-                        output[0] = 1
+                        action = 0
                 if event.button == 3:
                     self.game.mark(self.pos)
-                    output[1] = 1
+                    action = 1
 
         # if you move
         if self.old_pos != self.pos:
@@ -106,14 +107,14 @@ class Human:
             x_n, y_n = self.pos
 
             # N = 2, E = 3, S = 4, W = 5
-            if x_n > x_o: output[3] = 1
-            if x_n < x_o: output[5] = 1
-            if y_n > y_o: output[4] = 1
-            if y_n < y_o: output[2] = 1
+            if x_n > x_o: action = 3
+            if x_n < x_o: action = 5
+            if y_n > y_o: action = 4
+            if y_n < y_o: action = 2
 
-
+        output[action] = 1
         # remember where you were
-        self.move_list.append([self.pos, input, output])
+        self.move_list.append([self.pos, input, output, action, cleared])
 
         # train
         self.nn.train(input, output)
@@ -129,8 +130,8 @@ class Agent:
         self.move_list = [] # list of pos, input, action index
         self.nn = nn
         self.name2num_dict = {}
-        names = "_012345678fime"
-        for i in range(len(names)):
+        names = "i012345678fme_"
+        for i in range(-1, len(names) - 1):
             self.name2num_dict[names[i]] = i
 
     def clearMoves(self):
@@ -143,6 +144,7 @@ class Agent:
         for event in pygame.event.get() :
             if event.type == QUIT:
                 self.game.running = False
+                pygame.quit()
             if event.type == KEYDOWN and event.key == K_ESCAPE:
                 self.game.running = False
             if event.type == KEYDOWN and event.key == K_h:
@@ -154,18 +156,13 @@ class Agent:
         x, y = self.pos
         self.old_pos = self.pos
 
-        area = [(x-1, y-1), (x, y-1), (x+1, y-1),
-                (x-1, y  ), (x, y  ), (x+1, y  ),
-                (x-1, y+1), (x, y+1), (x+1, y+1)]
-
-        big = [(x-2, y-2), (x-1, y-2), (x  , y-2), (x+1, y-2), (x+2, y-2),
-               (x-2, y-1), (x-1, y-1), (x  , y-1), (x+1, y-1), (x+2, y-1),
-               (x-2, y  ), (x-1, y  ), (x  , y  ), (x+1, y  ), (x+2, y  ),
-               (x-2, y+1), (x-1, y+1), (x  , y+1), (x+1, y+1), (x+2, y+1),
-               (x-2, y+2), (x-1, y+2), (x  , y+2), (x+1, y+2), (x+2, y+2)]
-
-        if self.nn.layers_list[0] == 25:
-            area = big
+        area = []
+        n = int(math.sqrt(self.nn.layers_list[0]))
+        for j in range(n + 1):
+            b = y + j - n + 1
+            for i in range(n + 1):
+                a = x + i - n + 1
+                area.append((a, b))
 
         input = []
         for pos in area:
@@ -181,7 +178,7 @@ class Agent:
         if action == 0: # left click
             cleared = self.game.dig((x,y)) # how many spaces we cleared
 
-        elif action == 1:# or action == 1: # right click
+        elif action == 1: # right click
             self.game.mark((x,y))
 
         move = random.randint(0,4)
@@ -209,7 +206,7 @@ class Agent:
         if y > self.game.height - 1: y = self.game.height - 1
 
         # remember where you were
-        self.move_list.append([self.pos, input, action])
+        self.move_list.append([self.pos, input, output, action, cleared])
 
         # update yourself
         self.pos = (x, y)
@@ -217,13 +214,14 @@ class Agent:
             print "in same place, ", x, y
             #self.nn.train(input, [1,0,0,0,0,0])
 
-    def backPropogate(self, i, reward, threshold, decay = .5):
+    def backPropogate(self, move, reward, threshold = .05, decay = .5):
         # while there's reward and states left
-        while reward > threshold and i >= 0:
+        while reward > threshold and move >= 0:
             # reward the state at i
-            input = self.move_list[i][1]
-            output = self.move_list[i][2]
-            index = self.move_list[i][3]
+            pos = self.move_list[move][0]
+            input = self.move_list[move][1]
+            output = self.move_list[move][2]
+            index = self.move_list[move][3]
             output[index] += reward
             self.nn.train(input, output)
 
@@ -238,16 +236,26 @@ class Agent:
 
             # if you're not at the end of the list
             if i != len(self.move_list) - 1:
-                # and the state doesn't change
-                if move[1] == self.move_list[i+1][1]:
-                    self.backPropogate(i, -1, .2)
+                # if the state doesn't change and you were moving
+                if move[1] == self.move_list[i+1][1] and move[3] >= 2:
+                    self.backPropogate(i, -1)
 
-            if move[3] > 0: # if there was extra clearededge
-                self.backPropogate(i, 1, .2)
+            if move[3] == 0: # if you left clicked
+                if self.game.mine_array[move[0]]:
+                    self.backPropogate(i, 10 * move[4])
+                    print "you cleared ", move[4], " mines"
+                else:
+                    self.backPropogate(i, -1000)
+                    print "explosion"
 
-            if self.game.board[move[0]] == "i": # if a flag is incorrectly placed
-                self.backPropogate(i, -1, .2)
+            if move[3] == 1:
+                if self.game.board[move[0]] == "i" : # if a flag is incorrectly placed
+                    self.backPropogate(i, -1000)
+                    print "incorrect flagging"
 
+                if self.game.board[move[0]] == "f": # if correctly flagged
+                    self.bakcPropogate(i, 1000)
+                    print "successful flag"
 
     def reward(self, i, amt):
         self.state.rewards[i] += amt
