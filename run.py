@@ -104,6 +104,7 @@ def main():
                 pygame.display.flip()
 
         try:
+            agent.learn()
             win, lose = game.wins, game.loses
             win_pct = (win*100.0)/(win+lose)
             print "W: ", win

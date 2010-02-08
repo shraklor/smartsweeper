@@ -101,7 +101,6 @@ class NeuralNet:
 
     def train(self, input, target, rate = 1):
 
-
         # get output of our neural network
         output = self.getOut(input)
         '''

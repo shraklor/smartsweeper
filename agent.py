@@ -120,6 +120,9 @@ class Human:
         for i in range(10):
             self.nn.train(input, output)
 
+    def learn():
+        pass
+
 ################################################################################
 # Agent with a memory
 ################################################################################
@@ -223,7 +226,12 @@ class Agent:
             input = self.move_list[move][1]
             output = self.move_list[move][2]
             index = self.move_list[move][3]
-            output[index] += reward
+            if reward > 0:
+                output = [0] * 6
+                output[index] = 1
+            else:
+                output = [1] * 6
+                output[index] = 0
             self.nn.train(input, output)
 
             # then reduce your reward and move to the previous state
@@ -243,12 +251,14 @@ class Agent:
 
             if move[3] == 0: # if you left clicked
                 if self.game.mine_array[move[0]]:
-                    self.backPropogate(i, 10 * move[4])
-                    print "you cleared ", move[4], " mines"
-                else:
-                    self.backPropogate(i, -1000)
+                    self.backPropogate(i, -10)
                     print "explosion"
+                else:
+                    self.backPropogate(i, 100 * move[4])
+                    print "you cleared ", move[4], " mines"
 
+
+            # check this method for validity
             if move[3] == 1:
                 if self.game.board[move[0]] == "i" : # if a flag is incorrectly placed
                     self.backPropogate(i, -1000)
