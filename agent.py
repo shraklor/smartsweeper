@@ -36,7 +36,7 @@ class Human:
         self.pos = (0,0)
         self.move_list = [] # list of pos, input, action index
         input = 25
-        self.nn = NeuralNet([25,12,6])
+        self.nn = NeuralNet([49,25,6])
         self.name2num_dict = {}
         names = "i012345678fme_"
         for i in range(-1, len(names) - 1):
@@ -112,12 +112,13 @@ class Human:
             if y_n > y_o: action = 4
             if y_n < y_o: action = 2
 
-        output[action] = 1
+        output[action] = 100
         # remember where you were
         self.move_list.append([self.pos, input, output, action, cleared])
 
         # train
-        self.nn.train(input, output)
+        for i in range(10):
+            self.nn.train(input, output)
 
 ################################################################################
 # Agent with a memory
