@@ -26,6 +26,7 @@ from game import *
 from neural_network import *
 from agent import *
 
+
 def main():
     w = 10#30
     h = 10#16
@@ -33,6 +34,7 @@ def main():
 
     # create your game board
     game = Game(w, h, m, tile_size = 32)
+    game.out = open("data/test.csv", "w")
 
     # draw if you want
     if game.draw_board:
@@ -40,28 +42,23 @@ def main():
         screen = pygame.display.set_mode((w * t, h * t))
 
     # create your players
-    human = Human(game)
+    agent = Agent(game)
 
     # load your saved neural net from a file
     try:
-        f = open("human.obj", "r")
-        human.nn = pickle.load(f)
+        f = open("data/nn.obj", "r")
+        agent.nn = pickle.load(f)
         print "Loading human."
         f.close()
     except:
         print "Couldn't load human. Creating one."
-        human = Human(game)
-
-    bot = Agent(game, human.nn)
-
-    agents = [human, bot]
-    game.agent_index = 0
-
+        
     # get things started
     game.running = True
-    print "[H]UMAN or [R]OBOT?"
+    #print "[H]UMAN or [R]OBOT?"
+    step = 0
     while game.running:
-
+        step += 1
         # this loop is for the game itself
         go = True
         while not go:
@@ -70,27 +67,28 @@ def main():
             event = pygame.event.wait()
             if event.type == KEYDOWN:
                 if event.key == K_h:
-                    print "human"
-                    game.agent_index = 0
+                    #print "human"
+                    player.switch()
                     go = True
                 if event.key == K_r:
-                    print "robot"
-                    game.agent_index = 1
+                    #print "robot"
+                    player.switch()
                     go = True
 
         # check which player plays next
-        agent = agents[game.agent_index]
-
+        
         WIN = game.wins
+        s = str(step) + "," + str(game.cleared) + "," + str(game.left_click_count) + "\n"
+        game.out.write(s)
         game.reset()
 
         try:
-            f = open("human.obj", "w")
+            f = open("data/nn.obj", "w")
             pickle.dump(human.nn, f)
-            print "Saving your human."
+            #print "Saving your human."
             f.close()
-        except:
-            print "Couldn't save your human."
+        except:pass
+            #print "Couldn't save your human."
 
         agent.clearMoves()
         while not game.done:
@@ -103,20 +101,17 @@ def main():
                 pygame.draw.circle(screen, (0,0,0), (int(X),int(Y)), 5)
                 pygame.display.flip()
 
+
+        agent.learn()
         try:
-            agent.learn()
             win, lose = game.wins, game.loses
             win_pct = (win*100.0)/(win+lose)
-            print "W: ", win
-            print "L: ", lose
-            print "%: ", win_pct
-            print
-            print "[H]UMAN or [R]OBOT?"
+            #print "W: ", win
+            #print "L: ", lose
+            #print "%: ", win_pct
+        
         except: pass
-
-
-
-
-
+        #print "[H]UMAN or [R]OBOT?"
+    
 if __name__ == '__main__':
     main()

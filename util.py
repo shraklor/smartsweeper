@@ -26,14 +26,14 @@ import math,random,numpy
 # Important Functions
 ########################################################################
 def sigmoid(x):
-    return math.tanh(x)
-    #return 1.0 / (1 + math.exp(-x))
+    #return math.tanh(x)
+    return 1.0 / (1 + math.exp(-x))
 
 def sigPrime(x):
     # in terms of the output of the sigmoid function
     # otherwise would be sig(x) - sig^2(x)
-    return 1 - x ** 2
-    #return x - x ** 2
+    #return 1 - x ** 2
+    return x - x ** 2
 
 ########################################################################
 # Matrices
@@ -56,7 +56,7 @@ def randMat(rows, cols):
     for i in range(rows):
         row = []
         for j in range(cols):
-            row.append(random.random())
+            row.append((random.random() * 2) - 1)
         M.append(row)
     return M
 

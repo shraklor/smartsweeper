@@ -31,6 +31,7 @@ class Game:
         self.wins = 0
         self.loses = 0
         self.left_clicks = 0
+        self.cleared = 0
 
         self.draw_board = draw
         if self.draw_board:
@@ -48,6 +49,7 @@ class Game:
 
     def reset(self):
         self.left_click_count = 0
+        self.cleared = 0
         self.done = False
         self.result = -1
 
@@ -110,7 +112,8 @@ class Game:
             return False
 
     def dig(self, pos):
-        self.left_clicks += 1
+        self.left_click_count += 1
+
         "surely dig and clear can be merged"
         "things get funky with recursion"
         # clear a space and see if you win
@@ -213,6 +216,7 @@ class Game:
                         except:
                             pass # invalid position
 
+        self.cleared += cleared
         return cleared
 
     def isWon(self):

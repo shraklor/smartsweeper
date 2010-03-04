@@ -87,12 +87,13 @@ class NeuralNet:
         # find the highest values in the vector
         max = 0
         possible = []
+        threshold = .01
         for i in range(len(o)):
-            if o[i] > max:
+            if o[i] > max + threshold:
                 max = o[i]
                 possible = [i]
                 continue
-            if o[i] == max:
+            if max - threshold <= o[i] <= max + threshold:
                 possible.append(i)
 
         # pick a random one from the list
@@ -212,6 +213,7 @@ def main():
     print nn.getOut([1,1])
     print nn.getOut([1,0])
     print nn.getOut([0,0])
+    print nn.getOut([-1,0])
 
 
 if __name__ == '__main__':
