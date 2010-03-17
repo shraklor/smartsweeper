@@ -53,7 +53,7 @@ class Agent:
         self.visited = {}
         for i in range(self.game.width):
             for j in range(self.game.height):
-                self.guess[(i,j)] = 0
+                self.guess[(i,j)] = .5
                 self.visited[(i,j)] = 0        
 
     def mouse2Grid(self, pos):
@@ -79,7 +79,6 @@ class Agent:
         return area
    
     def act(self):
-
         cleared = 0
 
         self.old_pos = self.pos
@@ -114,12 +113,15 @@ class Agent:
             except: 
                 target.append(.5)
 
+        ################################################################
+        # EVENT LOOP - if you're drawing the board, check for events
+        ################################################################
         if self.game.draw_board:
-            # check for events
             for event in pygame.event.get() :
                 if event.type == QUIT:
                     self.game.running = False
                     return -1
+
                 # if the keyboard is used
                 elif event.type == KEYDOWN:
                     if event.key == K_ESCAPE:
@@ -129,6 +131,7 @@ class Agent:
                         self.switch()
                     if event.key == K_c:
                         self.cheat = bool(1 - int(self.cheat))
+
                 # if something is clicked
                 elif event.type == MOUSEBUTTONDOWN and self.human:
                     if event.button == 1:
@@ -137,7 +140,7 @@ class Agent:
                         self.game.mark(self.pos)
 
         ################################################################
-        # BOT
+        # BOT SPECIFIC STUFF
         ################################################################
         if not self.human:
             output = self.nn.getOut(input)
@@ -151,15 +154,16 @@ class Agent:
             for i in range(9):
                 try:
                     self.guess[area[i]] = (self.guess[area[i]] + output[i]) / 2.0
+                    ####################################################
+                    # RANDOM GAME - to get random output, uncomment
+                    ####################################################
+                    #self.guess[area[i]] = random.random()
                 except:
                     pass # this just means we're looking out of bounds
 
             # get the guess for the space you're on
             out = self.guess[(x,y)]
             name = self.game.board[self.pos]
-
-            # to get random output, uncomment this:
-            #out = random.random()
 
             self.thresh *= 1.1
             if (out <= self.thresh and name == "f"):

@@ -20,7 +20,7 @@
 #       Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #       MA 02110-1301, USA.
 
-import pygame, os, pickle, random
+import pygame, os, pickle, random, sys
 from pygame.locals import *
 from game import *
 from neural_network import *
@@ -29,7 +29,7 @@ from agent import *
 LOAD_PREV = True
 DRAW = True
 HUMAN = False
-CHUNK = 20
+CHUNK = 200
 
 def main():
     w = 10#30
@@ -53,11 +53,12 @@ def main():
     # load your saved neural net from a file
     if LOAD_PREV:
         try:
-            f = open("data/saved_state.obj", "r")
+            f = open("data/nn.obj", "r")
             agent.nn, count = pickle.load(f)
             print "Loading neural network."
             f.close()
         except:
+            #print sys.exc_info()
             print "Couldn't load mind. Creating one."
 
     csv = open("data/" + str(count) + ".csv", "w")
@@ -87,7 +88,20 @@ def main():
                 pygame.draw.circle(screen, (0,0,0), (int(X),int(Y)), 5)
                 pygame.display.flip()
 
+        # compare agent's map of minefield to actual
+        sum = 0
+        correct = 0
+        for x in range(game.width):
+            for y in range(game.height):
+                err = abs(game.mine_array[(x,y)] - agent.guess[(x,y)])
+                sum += err
+                if err < .5: correct += 1
+        sum /= float(game.width * game.height)
+        correct /= float(game.width * game.height)
+        print (1 - sum) ** 2, correct
+            
         agent.learn()
+        agent.clearMoves()
         s = (str(count) + "," +
              str(game.cleared) + "," +
              str(game.correct_digs) + "," +
@@ -95,6 +109,7 @@ def main():
              str(game.correct_flags) + "," +
              str(game.incorrect_flags) + "\n")
         csv.write(s)
+
         count += 1
         if count % CHUNK == 0:
             csv.close()
@@ -102,16 +117,13 @@ def main():
             csv.write("count,cleared,cor_digs,inc_digs,cor_flags,inc_flags\n")
         elif not game.running:
             csv.close()
+
         try:
             win, lose = game.wins, game.loses
             win_pct = (win*100.0)/(win+lose)
-            #print "W: ", win, " - L: ", lose
-            
+            print "W: ", win, " - L: ", lose
         except: pass
         
-        if game.correct_flags + game.incorrect_flags > 0:
-            print(s + " @" + str(count))
-
         game.reset()
     
 if __name__ == '__main__':
