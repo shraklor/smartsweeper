@@ -41,6 +41,8 @@ class Agent:
         for i in range(len(names)):
             self.name2num_dict[names[i]] = i - 4
         self.human = 0
+        self.cheat = False
+        self.thresh = .0001
         
     def switch(self):
         self.human = 1 - self.human
@@ -80,13 +82,17 @@ class Agent:
 
         cleared = 0
 
-        x, y = self.pos
         self.old_pos = self.pos
-
+        if self.human:
+            self.pos = self.mouse2Grid(pygame.mouse.get_pos())
+        x, y = self.pos
+        
         # figure out where your are and what's around you
         area = self.getArea(x,y,3)
         area2 = self.getArea(x,y,5)
-        
+
+
+        # GET INPUT FROM AREA AROUND YOU
         input = []
         for pos in area:
             try:
@@ -96,6 +102,9 @@ class Agent:
             except:
                 input.append(1)
 
+        # FIGURE OUT WHAT YOUR TARGET OUTPUT SHOULD BE
+        # this is not used to determine where to go or what to do
+        # it is only used durring the learning phase
         target = []
         for i in range(len(area)):
             pos = area[i]
@@ -105,49 +114,38 @@ class Agent:
             except: 
                 target.append(.5)
 
-
-        ################################################################
-        # HUMAN
-        ################################################################
-        if self.human:
-
-            if self.game.draw_board:
-                self.pos = self.mouse2Grid(pygame.mouse.get_pos())
-            x, y = self.pos
-            
+        if self.game.draw_board:
             # check for events
-            if self.game.draw_board:
-                for event in pygame.event.get() :
-                    if event.type == QUIT:
+            for event in pygame.event.get() :
+                if event.type == QUIT:
+                    self.game.running = False
+                    return -1
+                # if the keyboard is used
+                elif event.type == KEYDOWN:
+                    if event.key == K_ESCAPE:
                         self.game.running = False
-                        pygame.quit()
-                    if event.type == KEYDOWN and event.key == K_ESCAPE:
-                        self.game.running = False
-                    if event.type == KEYDOWN and event.key == K_r:
+                    if ((event.key == K_r and self.human) or
+                        (event.key == K_h and not self.human)):
                         self.switch()
-
-                    # if something is clicked
-                    if event.type == MOUSEBUTTONDOWN:
-                        if event.button == 1:
-                            cleared = self.game.dig(self.pos)
-                        if event.button == 3:
-                            self.game.mark(self.pos)
+                    if event.key == K_c:
+                        self.cheat = bool(1 - int(self.cheat))
+                # if something is clicked
+                elif event.type == MOUSEBUTTONDOWN and self.human:
+                    if event.button == 1:
+                        cleared = self.game.dig(self.pos)
+                    if event.button == 3:
+                        self.game.mark(self.pos)
 
         ################################################################
         # BOT
         ################################################################
-        else:
-            if self.game.draw_board:
-                for event in pygame.event.get():
-                    if event.type == QUIT:
-                        self.game.running = False
-                        pygame.quit()
-                    if event.type == KEYDOWN and event.key == K_ESCAPE:
-                        self.game.running = False
-                    if event.type == KEYDOWN and event.key == K_h:
-                        self.switch()
-
+        if not self.human:
             output = self.nn.getOut(input)
+
+            # uncomment this to play perfectly (cheat)
+            # for learning examples quicker
+            if self.cheat:
+                output = target
             
             # update your guesses for whether or not a square has a mine
             for i in range(9):
@@ -160,18 +158,26 @@ class Agent:
             out = self.guess[(x,y)]
             name = self.game.board[self.pos]
 
-            thr = .3
-            if (out < thr and name == "f"):
+            # to get random output, uncomment this:
+            #out = random.random()
+
+            self.thresh *= 1.1
+            if (out <= self.thresh and name == "f"):
                 self.game.mark((x,y))
-            elif (out > thr and name != "f"):
+                self.thresh = .1
+            elif (out >= 1 - self.thresh and name != "f"):
                 self.game.mark((x,y))
                 self.visited[(x,y)] += 1
-            elif out < thr and name != "f":
+                self.thresh = .1
+            elif out <= self.thresh and name != "f":
                 cleared = self.game.dig((x,y)) # how many spaces we cleared
                 self.visited[(x,y)] += 5
+                if name not in "012345678":
+                    self.thresh = .1
 
-            if self.game.board[(x,y)] == "0":
+            if name == "0":
                 self.visited[(x,y)] += 10
+                
             #x = random.randint(0, self.game.width - 1)
             #y = random.randint(0, self.game.height - 1)
 
@@ -215,10 +221,14 @@ class Agent:
 
     def learn(self):
         # go through each move and back propogate rewards
-        for i in range(len(self.move_list)):
-            for j in range(3):
-                self.backPropogate(i, .3, .01, .4)
-
+        """
+        if not self.cheat:
+            for i in range(len(self.move_list)):
+                for j in range(3):
+                    self.backPropogate(i, .3, .01, .4)
+        else:"""    
+        for move in self.move_list:
+            self.nn.train(move[1], move[2], .1)
         
     def reward(self, i, amt):
         self.state.rewards[i] += amt

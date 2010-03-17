@@ -27,17 +27,17 @@ from neural_network import *
 from agent import *
 
 LOAD_PREV = True
-DRAW = False
+DRAW = True
 HUMAN = False
-CHUNK = 500
+CHUNK = 20
 
 def main():
-    w = 30
-    h = 16
-    m = 99
+    w = 10#30
+    h = 10#16
+    m = 10#99
 
     # create your game board
-    game = Game(w, h, m, draw = DRAW, tile_size = 32)
+    game = Game(w, h, m, draw = DRAW, tile_size = 64)
     count = 0
         
     # draw if you want
@@ -100,7 +100,8 @@ def main():
             csv.close()
             csv = open("data/" + str(count) + ".csv", "w")
             csv.write("count,cleared,cor_digs,inc_digs,cor_flags,inc_flags\n")
-        
+        elif not game.running:
+            csv.close()
         try:
             win, lose = game.wins, game.loses
             win_pct = (win*100.0)/(win+lose)
