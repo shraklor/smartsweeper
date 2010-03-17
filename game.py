@@ -32,7 +32,12 @@ class Game:
         self.loses = 0
         self.left_clicks = 0
         self.cleared = 0
-
+        self.correct_digs = 0
+        self.incorrect_digs = 0
+        self.correct_flags = 0
+        self.incorrect_flags = 0
+        self.first_click = True
+        
         self.draw_board = draw
         if self.draw_board:
             pygame.init()
@@ -48,8 +53,14 @@ class Game:
         self.reset()
 
     def reset(self):
-        self.left_click_count = 0
+        self.left_clicks = 0
         self.cleared = 0
+        self.correct_digs = 0
+        self.incorrect_digs = 0
+        self.correct_flags = 0
+        self.incorrect_flags = 0
+        self.first_click = True
+
         self.done = False
         self.result = -1
 
@@ -112,8 +123,7 @@ class Game:
             return False
 
     def dig(self, pos):
-        self.left_click_count += 1
-
+        self.left_clicks += 1
         "surely dig and clear can be merged"
         "things get funky with recursion"
         # clear a space and see if you win
@@ -121,15 +131,20 @@ class Game:
         if self.isWon():
             self.wins += 1
             self.result = 1
-            #print "YOU WON!"
             self.done = True
+        if cleared > 0:
+            self.correct_digs += 1
+        elif cleared == 0:
+            self.incorrect_digs += 1
         return cleared
 
     def clear(self, pos):
         cleared = 0
-
+        x = pos[0]
+        y = pos[1]
+            
         # if the space has a mine and it's not your first move
-        if self.mine_array[pos] == 1 and self.left_clicks != 1:
+        if self.mine_array[pos] == 1 and not self.first_click:
 
             # go through every space on the board
             for h in range(self.height):
@@ -141,10 +156,18 @@ class Game:
 
                         # mark it as incorrectly flagged
                         self.upTile((w, h), "i")
+                        self.incorrect_flags += 1
+
+                    # if the space has a mine and is flagged
+                    elif (self.mine_array[(w, h)] == 1 and
+                          self.board[(w, h)] == "f"):
+
+                        # mark it as incorrectly flagged
+                        self.correct_flags += 1
 
                     # if the space has a mine and is not flagged
-                    if (self.mine_array[(w, h)] == 1 and
-                        self.board[(w, h)] == "_"):
+                    elif (self.mine_array[(w, h)] == 1 and
+                          self.board[(w, h)] == "_"):
 
                         # mark it as having a mine
                         self.upTile((w, h), "m")
@@ -154,25 +177,39 @@ class Game:
 
             # end the game
             self.loses += 1
-            #print "YOU LOST!"
             self.done = True
 
-        # if you hit a mine on your first click
-        if self.mine_array[pos] == 1 and self.left_clicks != 1:
+        # if it's your first click
+        if self.first_click:
+            self.first_click = False
+            area = [(x-1, y-1), (x, y-1), (x+1, y-1),
+                    (x-1, y),   (x, y),   (x+1, y),
+                    (x-1, y+1), (x, y+1), (x+1, y+1)]
+            count = 0
+            for s in area:
+                try:
+                    count += self.mine_array[s]
+                    self.mine_array[s] = 0
+                except:
+                    pass
+                    
+            rh = random.randint(0, self.height - 1)
+            rw = random.randint(0, self.width - 1)
             for h in range(self.height):
                 for w in range(self.width):
-                    if self.mine_array[(w,h)] == 0:
-                        self.mine_array[(w, h)] = 1
-                        break
-            self.mine_array[pos] = 0
+                    p = ((w + rw) % self.width, (h + rh) % self.height)
+                    if self.mine_array[p] == 0 and p not in area:
+                        if count > 0:
+                            self.mine_array[p] = 1
+                            count -= 1
+                        else:
+                            break
 
 
         # if the space is empty
         if self.mine_array[pos] == 0:
 
             # get your neighbors
-            x = pos[0]
-            y = pos[1]
             area = [(x-1, y-1), (x, y-1), (x+1, y-1),
                     (x-1, y),             (x+1, y),
                     (x-1, y+1), (x, y+1), (x+1, y+1)]
@@ -216,7 +253,6 @@ class Game:
                         except:
                             pass # invalid position
 
-        self.cleared += cleared
         return cleared
 
     def isWon(self):
@@ -232,6 +268,7 @@ class Game:
                     self.board[(w,h)] == "f" and
                     self.mine_array[(w,h)] == 1):
                         covered += 1
+        self.cleared = cleared
         if (cleared == ((self.width * self.height) - self.mines) and
             covered == self.mines):
             return True

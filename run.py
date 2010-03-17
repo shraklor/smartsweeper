@@ -26,16 +26,20 @@ from game import *
 from neural_network import *
 from agent import *
 
+LOAD_PREV = True
+DRAW = False
+HUMAN = False
+CHUNK = 500
 
 def main():
-    w = 10#30
-    h = 10#16
-    m = 10#99
+    w = 30
+    h = 16
+    m = 99
 
     # create your game board
-    game = Game(w, h, m, tile_size = 32)
-    game.out = open("data/test.csv", "w")
-
+    game = Game(w, h, m, draw = DRAW, tile_size = 32)
+    count = 0
+        
     # draw if you want
     if game.draw_board:
         t = game.tile_size
@@ -43,52 +47,34 @@ def main():
 
     # create your players
     agent = Agent(game)
+    if HUMAN:
+        agent.switch()
 
     # load your saved neural net from a file
-    try:
-        f = open("data/nn.obj", "r")
-        agent.nn = pickle.load(f)
-        print "Loading human."
-        f.close()
-    except:
-        print "Couldn't load human. Creating one."
-        
+    if LOAD_PREV:
+        try:
+            f = open("data/saved_state.obj", "r")
+            agent.nn, count = pickle.load(f)
+            print "Loading neural network."
+            f.close()
+        except:
+            print "Couldn't load mind. Creating one."
+
+    csv = open("data/" + str(count) + ".csv", "w")
+    csv.write("count,cleared,cor_digs,inc_digs,cor_flags,inc_flags\n")
+       
     # get things started
     game.running = True
-    #print "[H]UMAN or [R]OBOT?"
-    step = 0
     while game.running:
-        step += 1
-        # this loop is for the game itself
-        go = True
-        while not go:
-
-            # wait to see if we should change players
-            event = pygame.event.wait()
-            if event.type == KEYDOWN:
-                if event.key == K_h:
-                    #print "human"
-                    player.switch()
-                    go = True
-                if event.key == K_r:
-                    #print "robot"
-                    player.switch()
-                    go = True
-
-        # check which player plays next
-        
-        WIN = game.wins
-        s = str(step) + "," + str(game.cleared) + "," + str(game.left_click_count) + "\n"
-        game.out.write(s)
-        game.reset()
-
-        try:
-            f = open("data/nn.obj", "w")
-            pickle.dump(human.nn, f)
-            #print "Saving your human."
-            f.close()
-        except:pass
-            #print "Couldn't save your human."
+        if LOAD_PREV and count % CHUNK == 0:
+            try:
+                f = open("data/nn.obj", "w")
+                pickle.dump((agent.nn, count), f)
+                print "Saving your human."
+                f.close()
+            except:
+                #pass
+                print "Couldn't save your brain."
 
         agent.clearMoves()
         while not game.done:
@@ -101,17 +87,31 @@ def main():
                 pygame.draw.circle(screen, (0,0,0), (int(X),int(Y)), 5)
                 pygame.display.flip()
 
-
         agent.learn()
+        s = (str(count) + "," +
+             str(game.cleared) + "," +
+             str(game.correct_digs) + "," +
+             str(game.incorrect_digs) + "," +
+             str(game.correct_flags) + "," +
+             str(game.incorrect_flags) + "\n")
+        csv.write(s)
+        count += 1
+        if count % CHUNK == 0:
+            csv.close()
+            csv = open("data/" + str(count) + ".csv", "w")
+            csv.write("count,cleared,cor_digs,inc_digs,cor_flags,inc_flags\n")
+        
         try:
             win, lose = game.wins, game.loses
             win_pct = (win*100.0)/(win+lose)
-            #print "W: ", win
-            #print "L: ", lose
-            #print "%: ", win_pct
-        
+            #print "W: ", win, " - L: ", lose
+            
         except: pass
-        #print "[H]UMAN or [R]OBOT?"
+        
+        if game.correct_flags + game.incorrect_flags > 0:
+            print(s + " @" + str(count))
+
+        game.reset()
     
 if __name__ == '__main__':
     main()

@@ -204,17 +204,16 @@ def main():
     layers = [2,2,1]
     nn = NeuralNet(layers)
     for i in range(10000):
-        nn.train([0,1], [1], 1)
-        nn.train([1,1], [0], 1)
-        nn.train([1,0], [1], 1)
-        nn.train([0,0], [0], 1)
+        nn.train([0,1], [1], .1)
+        nn.train([1,1], [0], .1)
+        nn.train([1,0], [1], .1)
+        nn.train([0,0], [0], .1)
 
     print nn.getOut([0,1])
     print nn.getOut([1,1])
     print nn.getOut([1,0])
     print nn.getOut([0,0])
     print nn.getOut([-1,0])
-
 
 if __name__ == '__main__':
     main()

@@ -34,19 +34,25 @@ class Agent:
         self.game = game
         self.old_pos = (0,0)
         self.pos = (0,0)
-        self.move_list = [] # list of pos, input, action index
-        self.nn = NeuralNet([9,4,1])
+        self.clearMoves()
+        self.nn = NeuralNet([9,30,9])
         self.name2num_dict = {}
         names = "ime_012345678f"
         for i in range(len(names)):
             self.name2num_dict[names[i]] = i - 4
         self.human = 0
-
+        
     def switch(self):
         self.human = 1 - self.human
             
     def clearMoves(self):
         self.move_list = []
+        self.guess = {}
+        self.visited = {}
+        for i in range(self.game.width):
+            for j in range(self.game.height):
+                self.guess[(i,j)] = 0
+                self.visited[(i,j)] = 0        
 
     def mouse2Grid(self, pos):
         x, y = pos
@@ -77,137 +83,131 @@ class Agent:
         x, y = self.pos
         self.old_pos = self.pos
 
-        area = self.getArea(x,y,int(math.sqrt(self.nn.layers_list[0])))
+        # figure out where your are and what's around you
+        area = self.getArea(x,y,3)
+        area2 = self.getArea(x,y,5)
+        
         input = []
         for pos in area:
             try:
                 name = self.game.board[pos]
-                print name
                 num = self.name2num_dict[name]
-                print num
                 input.append(num)
             except:
-                print 'here'
                 input.append(1)
 
+        target = []
+        for i in range(len(area)):
+            pos = area[i]
+            try:
+                num = self.game.mine_array[pos]
+                target.append(num)
+            except: 
+                target.append(.5)
+
+
+        ################################################################
+        # HUMAN
+        ################################################################
         if self.human:
-            action = 0
-            output = [0]
 
-            # check for events
-            for event in pygame.event.get() :
-                if event.type == QUIT:
-                    self.game.running = False
-                    pygame.quit()
-                if event.type == KEYDOWN and event.key == K_ESCAPE:
-                    self.game.running = False
-                if event.type == KEYDOWN and event.key == K_r:
-                    self.game.done = True
-                    self.game.agent_index = 1
-
-                # if something is clicked
-                if event.type == MOUSEBUTTONDOWN:
-                    if event.button == 1:
-                        cleared = self.game.dig(self.pos)
-                        if cleared > 0:
-                            action = 1
-                    if event.button == 3:
-                        self.game.mark(self.pos)
-                        action = -1
-
-            # if you move
-            if self.old_pos != self.pos:
-                x_o, y_o = self.old_pos
-                x_n, y_n = self.pos
-
-                '''# N = 2, E = 3, S = 4, W = 5
-                if x_n > x_o: action = 3
-                if x_n < x_o: action = 5
-                if y_n > y_o: action = 4
-                if y_n < y_o: action = 2
-                '''
-                action = 0
-                
-            print output
+            if self.game.draw_board:
+                self.pos = self.mouse2Grid(pygame.mouse.get_pos())
+            x, y = self.pos
             
-            # remember where you were
-            self.move_list.append([self.pos, input, output, action, cleared])
+            # check for events
+            if self.game.draw_board:
+                for event in pygame.event.get() :
+                    if event.type == QUIT:
+                        self.game.running = False
+                        pygame.quit()
+                    if event.type == KEYDOWN and event.key == K_ESCAPE:
+                        self.game.running = False
+                    if event.type == KEYDOWN and event.key == K_r:
+                        self.switch()
 
-            # train
-            for i in range(10):
-                self.nn.train(input, output)
+                    # if something is clicked
+                    if event.type == MOUSEBUTTONDOWN:
+                        if event.button == 1:
+                            cleared = self.game.dig(self.pos)
+                        if event.button == 3:
+                            self.game.mark(self.pos)
 
+        ################################################################
+        # BOT
+        ################################################################
         else:
-            for event in pygame.event.get() :
-                if event.type == QUIT:
-                    self.game.running = False
-                    pygame.quit()
-                if event.type == KEYDOWN and event.key == K_ESCAPE:
-                    self.game.running = False
-                if event.type == KEYDOWN and event.key == K_h:
-                    self.game.done = True
-                    self.game.agent_index = 0
+            if self.game.draw_board:
+                for event in pygame.event.get():
+                    if event.type == QUIT:
+                        self.game.running = False
+                        pygame.quit()
+                    if event.type == KEYDOWN and event.key == K_ESCAPE:
+                        self.game.running = False
+                    if event.type == KEYDOWN and event.key == K_h:
+                        self.switch()
 
-
-
-            print input
             output = self.nn.getOut(input)
-            action = output[0]
-            print action
+            
+            # update your guesses for whether or not a square has a mine
+            for i in range(9):
+                try:
+                    self.guess[area[i]] = (self.guess[area[i]] + output[i]) / 2.0
+                except:
+                    pass # this just means we're looking out of bounds
 
-            if action > .7: # left click
-                cleared = self.game.dig((x,y)) # how many spaces we cleared
-                action = 1
+            # get the guess for the space you're on
+            out = self.guess[(x,y)]
+            name = self.game.board[self.pos]
 
-            elif action < -.7: # right click
+            thr = .3
+            if (out < thr and name == "f"):
                 self.game.mark((x,y))
-                action = -1
+            elif (out > thr and name != "f"):
+                self.game.mark((x,y))
+                self.visited[(x,y)] += 1
+            elif out < thr and name != "f":
+                cleared = self.game.dig((x,y)) # how many spaces we cleared
+                self.visited[(x,y)] += 5
 
-            else: action = 0
-            move = random.randint(2,6)
+            if self.game.board[(x,y)] == "0":
+                self.visited[(x,y)] += 10
+            #x = random.randint(0, self.game.width - 1)
+            #y = random.randint(0, self.game.height - 1)
 
-            if move == 2:
-                y -= 1
-                #print "move north"
+            # find the spot you've visited least
+            min = 9999999999
+            s = [(x,y)]
+            for pos in area:
+                try:
+                    v = self.visited[pos]
+                    if v < min:
+                        min = v
+                        s = [pos]
+                    elif v == min:
+                        s.append(pos)                    
+                except:
+                    pass
+            random.shuffle(s)
+                    
+            # and go to it
+            self.pos = s[0]
+            self.visited[self.pos] += 1
 
-            elif move == 3:
-                x += 1
-                #print "move east"
+        self.move_list.append([self.pos, input, target])
 
-            elif move == 4:
-                y += 1
-                #print "move south"
-
-            elif move == 5:
-                x -= 1
-                #print "move west"
-
-        # slide along the wall
-        if x < 0: x = 0
-        if x > self.game.width - 1: x = self.game.width - 1
-        if y < 0: y = 0
-        if y > self.game.height - 1: y = self.game.height - 1
-
-        # remember where you were
-        self.move_list.append([self.pos, input, output, action, cleared])
-
-        # update yourself
-        self.pos = (x, y)
-        if self.old_pos == self.pos:
-            #print "in same place, ", x, y
-            self.nn.train(input, [1])
-
-    def backPropogate(self, move, reward, threshold = .05, decay = .5):
+    def backPropogate(self, move, reward, threshold = .05, decay = .7):
         # while there's reward and states left
         while reward > threshold and move >= 0:
-            # reward the state at i
+
+            # reward the state at 'move', an int
             pos = self.move_list[move][0]
             input = self.move_list[move][1]
-            output = self.move_list[move][2]
-            action = self.move_list[move][3]
+            n = max(max(input), 0)
+            target = self.move_list[move][2]
             
-            output = [action * reward]
-            self.nn.train(input, output)
+            for i in range(n):
+                self.nn.train(input, target, reward)
 
             # then reduce your reward and move to the previous state
             move -= 1
@@ -216,33 +216,10 @@ class Agent:
     def learn(self):
         # go through each move and back propogate rewards
         for i in range(len(self.move_list)):
-            move = self.move_list[i]
+            for j in range(3):
+                self.backPropogate(i, .3, .01, .4)
 
-            # if you're not at the end of the list
-            if i != len(self.move_list) - 1:
-                # if the state doesn't change and you were moving
-                if move[1] == self.move_list[i+1][1] and move[3] >= 2:
-                    self.backPropogate(i, -1)
-
-            if move[3] == 0: # if you left clicked
-                if self.game.mine_array[move[0]]:
-                    self.backPropogate(i, -10)
-                    #print "explosion"
-                elif move[4] >= 1:
-                    self.backPropogate(i, 100 * move[4])
-                    #print "you cleared ", move[4], " mines"
-
-
-            # check this method for validity
-            if move[3] == 1:
-                if self.game.board[move[0]] == "i" : # if a flag is incorrectly placed
-                    self.backPropogate(i, -10)
-                    #print "incorrect flagging"
-
-                if self.game.board[move[0]] == "f": # if correctly flagged
-                    self.backPropogate(i, 1000)
-                    #print "successful flag"
-
+        
     def reward(self, i, amt):
         self.state.rewards[i] += amt
 
@@ -251,3 +228,10 @@ class Agent:
 
     def setPos(self, pos):
         self.pos = pos
+
+    def getNumMineGuess(self):
+        sum = 0
+        for guess in self.guess.values():
+            if guess > .5:
+                sum += 1
+        return sum

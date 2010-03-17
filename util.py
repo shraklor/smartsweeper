@@ -26,13 +26,13 @@ import math,random,numpy
 # Important Functions
 ########################################################################
 def sigmoid(x):
-    #return math.tanh(x)
+    #return math.tanh(x) # a similar function
     return 1.0 / (1 + math.exp(-x))
 
 def sigPrime(x):
     # in terms of the output of the sigmoid function
     # otherwise would be sig(x) - sig^2(x)
-    #return 1 - x ** 2
+    #return 1 - x ** 2 # if using tanh
     return x - x ** 2
 
 ########################################################################
