@@ -29,7 +29,7 @@ from agent import *
 LOAD_PREV = True
 DRAW = True
 HUMAN = False
-CHUNK = 200
+CHUNK = 100
 
 def main():
     w = 10#30
@@ -39,7 +39,9 @@ def main():
     # create your game board
     game = Game(w, h, m, draw = DRAW, tile_size = 64)
     count = 0
-        
+    #errors = [0] * CHUNK
+    #corrects = [0] * CHUNK
+    
     # draw if you want
     if game.draw_board:
         t = game.tile_size
@@ -47,6 +49,7 @@ def main():
 
     # create your players
     agent = Agent(game)
+    #agent.cheat = True
     if HUMAN:
         agent.switch()
 
@@ -54,7 +57,7 @@ def main():
     if LOAD_PREV:
         try:
             f = open("data/nn.obj", "r")
-            agent.nn, count = pickle.load(f)
+            agent.nn = pickle.load(f)
             print "Loading neural network."
             f.close()
         except:
@@ -67,15 +70,6 @@ def main():
     # get things started
     game.running = True
     while game.running:
-        if LOAD_PREV and count % CHUNK == 0:
-            try:
-                f = open("data/nn.obj", "w")
-                pickle.dump((agent.nn, count), f)
-                print "Saving your human."
-                f.close()
-            except:
-                #pass
-                print "Couldn't save your brain."
 
         agent.clearMoves()
         while not game.done:
@@ -98,11 +92,16 @@ def main():
                 if err < .5: correct += 1
         sum /= float(game.width * game.height)
         correct /= float(game.width * game.height)
-        print (1 - sum) ** 2, correct
-            
+        sq_err = (1 - sum) ** 2
+
+        #errors[count] += sq_err
+        #corrects[count] += correct
+           
         agent.learn()
         agent.clearMoves()
         s = (str(count) + "," +
+             str(sq_err) + "," +
+             str(correct) + "," +
              str(game.cleared) + "," +
              str(game.correct_digs) + "," +
              str(game.incorrect_digs) + "," +
@@ -110,21 +109,50 @@ def main():
              str(game.incorrect_flags) + "\n")
         csv.write(s)
 
+        ################################################################
+        # START NEW FILE AFTER chunk ITTERATIONS
+        ################################################################
         count += 1
         if count % CHUNK == 0:
             csv.close()
+            #agent = Agent(game)
+            #count = 0
             csv = open("data/" + str(count) + ".csv", "w")
-            csv.write("count,cleared,cor_digs,inc_digs,cor_flags,inc_flags\n")
+            csv.write("count,sq_err,pct_cor,cleared,cor_digs,inc_digs,cor_flags,inc_flags\n")
         elif not game.running:
             csv.close()
-
         try:
             win, lose = game.wins, game.loses
             win_pct = (win*100.0)/(win+lose)
             print "W: ", win, " - L: ", lose
+            print s
         except: pass
-        
+
+        ################################################################
+        # SAVE NN
+        ################################################################
+        if LOAD_PREV:
+            try:
+                f = open("data/nn.obj", "w")
+                pickle.dump(agent.nn, f)
+                print "Saving your neural network."
+                f.close()
+            except:
+                #pass
+                print "Couldn't save your neural network."
+
+
+
         game.reset()
-    
+
+    '''
+    csv = open("data/first_100.csv", "w")
+    for i in range(CHUNK):
+        c = corrects[i] / 10.0
+        e = errors[i] / 10.0
+        csv.write(str(e) + "," + str(c) + "\n")
+    csv.close()
+    '''
+     
 if __name__ == '__main__':
     main()

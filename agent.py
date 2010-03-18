@@ -42,7 +42,7 @@ class Agent:
             self.name2num_dict[names[i]] = i - 4
         self.human = 0
         self.cheat = False
-        self.thresh = .0001
+        self.thresh = .05
         
     def switch(self):
         self.human = 1 - self.human
@@ -165,19 +165,19 @@ class Agent:
             out = self.guess[(x,y)]
             name = self.game.board[self.pos]
 
-            self.thresh *= 1.1
+            self.thresh *= 1.01
             if (out <= self.thresh and name == "f"):
                 self.game.mark((x,y))
-                self.thresh = .1
+                self.thresh = .05
             elif (out >= 1 - self.thresh and name != "f"):
                 self.game.mark((x,y))
                 self.visited[(x,y)] += 1
-                self.thresh = .1
+                self.thresh = .05
             elif out <= self.thresh and name != "f":
                 cleared = self.game.dig((x,y)) # how many spaces we cleared
                 self.visited[(x,y)] += 5
                 if name not in "012345678":
-                    self.thresh = .1
+                    self.thresh = .05
 
             if name == "0":
                 self.visited[(x,y)] += 10
