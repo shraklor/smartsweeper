@@ -30,13 +30,6 @@ class Game:
         self.mines = mines
         self.wins = 0
         self.loses = 0
-        self.left_clicks = 0
-        self.cleared = 0
-        self.correct_digs = 0
-        self.incorrect_digs = 0
-        self.correct_flags = 0
-        self.incorrect_flags = 0
-        self.first_click = True
         
         self.draw_board = draw
         if self.draw_board:
@@ -59,6 +52,7 @@ class Game:
         self.incorrect_digs = 0
         self.correct_flags = 0
         self.incorrect_flags = 0
+        self.towel_thrown = 0
         self.first_click = True
 
         self.done = False
@@ -86,6 +80,9 @@ class Game:
             for w in range(self.width):
                 self.upTile((w, h), "_")
 
+    def throwTowel(self):
+        self.towel_thrown = 1
+        
     def loadImg(self, name):
         return pygame.image.load(os.path.join("images", name + ".png"))
 

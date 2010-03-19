@@ -26,21 +26,23 @@ from game import *
 from neural_network import *
 from agent import *
 
-LOAD_PREV = True
+LOAD_NN = True
+SAVE_NN = True
 DRAW = True
+RECORD = False # this is really resource intensive
 HUMAN = False
-CHUNK = 100
+CHUNK = 1000
+OUTPUT_TEXT = "win_pct,sq_err,pct_cor,cleared,cor_digs,inc_digs,cor_flags,inc_flags\n"
 
 def main():
-    w = 10#30
-    h = 10#16
-    m = 10#99
+    w = 30
+    h = 16
+    m = 99
 
     # create your game board
-    game = Game(w, h, m, draw = DRAW, tile_size = 64)
+    game = Game(w, h, m, draw = DRAW, tile_size = 32)
     count = 0
-    #errors = [0] * CHUNK
-    #corrects = [0] * CHUNK
+    frame = 0
     
     # draw if you want
     if game.draw_board:
@@ -53,10 +55,12 @@ def main():
     if HUMAN:
         agent.switch()
 
+    ####################################################################
     # load your saved neural net from a file
-    if LOAD_PREV:
+    ####################################################################
+    if LOAD_NN:
         try:
-            f = open("data/nn.obj", "r")
+            f = open(os.path.join("data","nn.obj"), "r")
             agent.nn = pickle.load(f)
             print "Loading neural network."
             f.close()
@@ -64,42 +68,58 @@ def main():
             #print sys.exc_info()
             print "Couldn't load mind. Creating one."
 
-    csv = open("data/" + str(count) + ".csv", "w")
-    csv.write("count,cleared,cor_digs,inc_digs,cor_flags,inc_flags\n")
+    ####################################################################
+    # create a log file
+    ####################################################################
+    csv = open(os.path.join("data", str(count) + ".csv"), "w")
+    csv.write(OUTPUT_TEXT)
        
     # get things started
     game.running = True
     while game.running:
 
         agent.clearMoves()
+
+        ################################################################
+        # AN INDIVIDUAL GAME
+        ################################################################
         while not game.done:
             agent.act()
             if game.draw_board:
-                game.clock.tick(30)
+                game.clock.tick()#60) #to pace the bot
                 screen.blit(game.surface, (0,0))
                 x, y = agent.pos
                 X, Y = x * t + t/2.0, y * t + t/2.0
                 pygame.draw.circle(screen, (0,0,0), (int(X),int(Y)), 5)
+                if RECORD:
+                    pygame.image.save(screen, os.path.join("video", str(frame) + ".png"))
+                    frame += 1
                 pygame.display.flip()
 
+        ################################################################
         # compare agent's map of minefield to actual
-        sum = 0
+        ################################################################
+        sq_err = 0
         correct = 0
         for x in range(game.width):
             for y in range(game.height):
                 err = abs(game.mine_array[(x,y)] - agent.guess[(x,y)])
-                sum += err
+                sq_err += err ** 2
                 if err < .5: correct += 1
-        sum /= float(game.width * game.height)
+        sq_err /= float(game.width * game.height)
         correct /= float(game.width * game.height)
-        sq_err = (1 - sum) ** 2
 
-        #errors[count] += sq_err
-        #corrects[count] += correct
-           
-        agent.learn()
-        agent.clearMoves()
-        s = (str(count) + "," +
+        ################################################################
+        # print results to file
+        ################################################################
+        try:
+            win, lose = game.wins, game.loses
+            win_pct = (win*100.0)/(win+lose)
+            print "W: ", win, " - L: ", lose
+            print s
+        except: win_pct = 0
+        
+        s = (str(win_pct) + "," +
              str(sq_err) + "," +
              str(correct) + "," +
              str(game.cleared) + "," +
@@ -108,7 +128,7 @@ def main():
              str(game.correct_flags) + "," +
              str(game.incorrect_flags) + "\n")
         csv.write(s)
-
+        
         ################################################################
         # START NEW FILE AFTER chunk ITTERATIONS
         ################################################################
@@ -117,23 +137,23 @@ def main():
             csv.close()
             #agent = Agent(game)
             #count = 0
-            csv = open("data/" + str(count) + ".csv", "w")
-            csv.write("count,sq_err,pct_cor,cleared,cor_digs,inc_digs,cor_flags,inc_flags\n")
+            csv = open(os.path.join("data", str(count) + ".csv"), "w")
+            csv.write(OUTPUT_TEXT)
         elif not game.running:
             csv.close()
-        try:
-            win, lose = game.wins, game.loses
-            win_pct = (win*100.0)/(win+lose)
-            print "W: ", win, " - L: ", lose
-            print s
-        except: pass
 
+        ################################################################
+        # LEARN!!!
+        ################################################################
+        agent.learn()
+        agent.clearMoves()
+        
         ################################################################
         # SAVE NN
         ################################################################
-        if LOAD_PREV:
+        if SAVE_NN:
             try:
-                f = open("data/nn.obj", "w")
+                f = open(os.path.join("data","nn.obj"), "w")
                 pickle.dump(agent.nn, f)
                 print "Saving your neural network."
                 f.close()
@@ -141,18 +161,11 @@ def main():
                 #pass
                 print "Couldn't save your neural network."
 
-
-
+        ################################################################
+        # RESET BOARD
+        ################################################################
         game.reset()
 
-    '''
-    csv = open("data/first_100.csv", "w")
-    for i in range(CHUNK):
-        c = corrects[i] / 10.0
-        e = errors[i] / 10.0
-        csv.write(str(e) + "," + str(c) + "\n")
-    csv.close()
-    '''
      
 if __name__ == '__main__':
     main()

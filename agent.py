@@ -25,6 +25,7 @@ from pygame.locals import *
 from game import *
 from neural_network import *
 
+MAX_MOVES = 5000
 ################################################################################
 # Intelligent Agent
 ################################################################################
@@ -35,14 +36,17 @@ class Agent:
         self.old_pos = (0,0)
         self.pos = (0,0)
         self.clearMoves()
-        self.nn = NeuralNet([9,30,9])
         self.name2num_dict = {}
-        names = "ime_012345678f"
+        names = "_012345678f"
+        self.in_size = len(names)
         for i in range(len(names)):
-            self.name2num_dict[names[i]] = i - 4
+            nodes = [0] * len(names)
+            nodes[i] = 1
+            self.name2num_dict[names[i]] = nodes
+        self.nn = NeuralNet([9*len(names),50,9])
         self.human = 0
         self.cheat = False
-        self.thresh = .05
+        self.thresh = .2
         
     def switch(self):
         self.human = 1 - self.human
@@ -96,10 +100,10 @@ class Agent:
         for pos in area:
             try:
                 name = self.game.board[pos]
-                num = self.name2num_dict[name]
-                input.append(num)
+                nodes = self.name2num_dict[name]
+                input += nodes
             except:
-                input.append(1)
+                input += [0] * self.in_size
 
         # FIGURE OUT WHAT YOUR TARGET OUTPUT SHOULD BE
         # this is not used to determine where to go or what to do
@@ -166,18 +170,27 @@ class Agent:
             name = self.game.board[self.pos]
 
             self.thresh *= 1.01
-            if (out <= self.thresh and name == "f"):
+            if len(self.move_list) < MAX_MOVES:
+                if (out <= self.thresh and name == "f"):
+                    self.game.mark((x,y))
+                    self.thresh = .2
+                elif (out >= 1 - self.thresh and name != "f"):
+                    self.game.mark((x,y))
+                    self.visited[(x,y)] += 1
+                    self.thresh = .2
+                elif out <= self.thresh and name != "f":
+                    cleared = self.game.dig((x,y)) # how many spaces we cleared
+                    self.visited[(x,y)] += 5
+                    if name not in "012345678":
+                        self.thresh = .2
+
+            # if you've gone so many moves without ending the game, do it
+            elif name == "f":
                 self.game.mark((x,y))
-                self.thresh = .05
-            elif (out >= 1 - self.thresh and name != "f"):
-                self.game.mark((x,y))
-                self.visited[(x,y)] += 1
-                self.thresh = .05
-            elif out <= self.thresh and name != "f":
-                cleared = self.game.dig((x,y)) # how many spaces we cleared
-                self.visited[(x,y)] += 5
-                if name not in "012345678":
-                    self.thresh = .05
+                self.game.throwTowel()
+            else:
+                cleared = self.game.dig((x,y))
+                self.game.throwTowel()
 
             if name == "0":
                 self.visited[(x,y)] += 10
@@ -185,10 +198,29 @@ class Agent:
             #x = random.randint(0, self.game.width - 1)
             #y = random.randint(0, self.game.height - 1)
 
+            # if you're on green, move to brown
+            possible = []
+            for pos in area:
+                if self.pos == pos:
+                    continue
+                try:
+                    a = self.game.board[self.pos]
+                    grn = "_f"
+                    brn = "012345678"
+                    if (a in grn) and (self.game.board[pos] in brn):
+                        possible.append(pos)
+                except: pass
+                
+            # if this isn't possible, anywhere is fine
+            if len(possible) == 0:
+                possible = area
+                
             # find the spot you've visited least
             min = 9999999999
-            s = [(x,y)]
-            for pos in area:
+            s = []
+            for pos in possible:
+                if pos == self.pos:
+                    continue
                 try:
                     v = self.visited[pos]
                     if v < min:
@@ -225,14 +257,8 @@ class Agent:
 
     def learn(self):
         # go through each move and back propogate rewards
-        """
-        if not self.cheat:
-            for i in range(len(self.move_list)):
-                for j in range(3):
-                    self.backPropogate(i, .3, .01, .4)
-        else:"""    
         for move in self.move_list:
-            self.nn.train(move[1], move[2], .1)
+            self.nn.train(move[1], move[2], .01)
         
     def reward(self, i, amt):
         self.state.rewards[i] += amt

@@ -191,10 +191,11 @@ class NeuralNet:
                     self.momentum[i][j][k] = change
         '''
 
-        #error = 0
-        #for i in err:
-        #    error += .5 * (i) ** 2
-        #return error
+        output = self.getOut(input)
+        error = 0
+        for i in range(len(output)):
+            error += (target[i] - output[i]) ** 2
+        return error / float(len(output))
 
 ################################################################################
 # example
