@@ -101,13 +101,15 @@ class Game:
         self.mines = m
 
     def printBoard(self):
+        s = ""
         for h in range(self.height):
             for w in range(self.width):
                 try:
-                    print(self.board[(w, h)]),
+                    s += self.board[(w, h)]
                 except:
-                    print("X"),
-            print()
+                    s += "X"
+            s += "\n"
+        print s
 
     def mark(self, pos):
         # place a flag down or pull one up

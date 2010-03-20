@@ -20,29 +20,44 @@
 #       Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #       MA 02110-1301, USA.
 
-import pygame, os, pickle, random, sys
+import pygame, os, pickle, random, sys, platform
 from pygame.locals import *
 from game import *
 from neural_network import *
 from agent import *
 
-LOAD_NN = True
+LOAD_NN = False
 SAVE_NN = True
-DRAW = True
+DRAW = False
 RECORD = False # this is really resource intensive
 HUMAN = False
-CHUNK = 1000
+CHUNK = 200
 OUTPUT_TEXT = "win_pct,sq_err,pct_cor,cleared,cor_digs,inc_digs,cor_flags,inc_flags\n"
 
+def getErrors(game, agent):
+    sq_err = 0
+    correct = 0
+    for x in range(game.width):
+        for y in range(game.height):
+            err = abs(game.mine_array[(x,y)] - agent.guess[(x,y)])
+            sq_err += err ** 2
+            if err < .5: correct += 1
+    sq_err /= float(game.width * game.height)
+    correct /= float(game.width * game.height)
+    return sq_err, correct
+    
 def main():
-    w = 30
-    h = 16
-    m = 99
-
+    w = 8#30
+    h = 8#16
+    m = 10#99
+    s = ""
+    
     # create your game board
     game = Game(w, h, m, draw = DRAW, tile_size = 32)
     count = 0
     frame = 0
+    banner = "MINESWEEPER    W:0 - L:0"
+        
     
     # draw if you want
     if game.draw_board:
@@ -77,7 +92,6 @@ def main():
     # get things started
     game.running = True
     while game.running:
-
         agent.clearMoves()
 
         ################################################################
@@ -85,6 +99,16 @@ def main():
         ################################################################
         while not game.done:
             agent.act()
+            sq_err, correct = getErrors(game, agent)
+            clear = "clear"
+            if platform.system() == "Windows":
+                clear = "cls"
+            os.system(clear)
+            print(banner)
+            print("Squared Error", sq_err)
+            print("Percent Correct", correct)
+            game.printBoard()
+            
             if game.draw_board:
                 game.clock.tick()#60) #to pace the bot
                 screen.blit(game.surface, (0,0))
@@ -99,26 +123,16 @@ def main():
         ################################################################
         # compare agent's map of minefield to actual
         ################################################################
-        sq_err = 0
-        correct = 0
-        for x in range(game.width):
-            for y in range(game.height):
-                err = abs(game.mine_array[(x,y)] - agent.guess[(x,y)])
-                sq_err += err ** 2
-                if err < .5: correct += 1
-        sq_err /= float(game.width * game.height)
-        correct /= float(game.width * game.height)
+        sq_err, correct = getErrors(game, agent)
 
         ################################################################
         # print results to file
         ################################################################
+        win, lose = game.wins, game.loses
         try:
-            win, lose = game.wins, game.loses
             win_pct = (win*100.0)/(win+lose)
-            print "W: ", win, " - L: ", lose
-            print s
         except: win_pct = 0
-        
+
         s = (str(win_pct) + "," +
              str(sq_err) + "," +
              str(correct) + "," +
@@ -128,15 +142,18 @@ def main():
              str(game.correct_flags) + "," +
              str(game.incorrect_flags) + "\n")
         csv.write(s)
-        
+
+        banner = "MINESWEEPER    W: " + str(win) + " - L: " + str(lose)
+                  
+        #print "W: ", win, " - L: ", lose
+        #print s
+
         ################################################################
         # START NEW FILE AFTER chunk ITTERATIONS
         ################################################################
         count += 1
         if count % CHUNK == 0:
             csv.close()
-            #agent = Agent(game)
-            #count = 0
             csv = open(os.path.join("data", str(count) + ".csv"), "w")
             csv.write(OUTPUT_TEXT)
         elif not game.running:
