@@ -53,11 +53,11 @@ def main():
     s = ""
     
     # create your game board
-    game = Game(w, h, m, draw = DRAW, tile_size = 32)
+    game = Game(w, h, m, draw = DRAW, tile_size = 64)
     count = 0
     frame = 0
-    banner = "MINESWEEPER    W:0 - L:0"
-        
+    banner = "Smartsweeper    W:0 - L:0"
+    if DRAW: pygame.display.set_caption(banner)
     
     # draw if you want
     if game.draw_board:
@@ -99,7 +99,7 @@ def main():
         ################################################################
         while not game.done:
             agent.act()
-            sq_err, correct = getErrors(game, agent)
+            '''sq_err, correct = getErrors(game, agent)
             clear = "clear"
             if platform.system() == "Windows":
                 clear = "cls"
@@ -108,10 +108,25 @@ def main():
             print("Squared Error", sq_err)
             print("Percent Correct", correct)
             game.printBoard()
-            
+            '''
             if game.draw_board:
                 game.clock.tick()#60) #to pace the bot
                 screen.blit(game.surface, (0,0))
+
+                # DRAW AGENT'S GUESS
+                # purple = mine, yellow = not mine
+                # transparent = certain, opaque = not sure
+                if agent.goggles:
+                    tran = pygame.Surface((t-1, t-1))
+                    for i in range(w):
+                        for j in range(h):
+                            g = 1 - agent.guess[(i,j)]
+                            g *= 255
+                            tran.fill((160,g,255-g))
+                            g = int(min(g, 255-g) * 2)
+                            tran.set_alpha(int(g / 1.4))
+                            screen.blit(tran, (i * t + 1, j * t + 1))
+                
                 x, y = agent.pos
                 X, Y = x * t + t/2.0, y * t + t/2.0
                 pygame.draw.circle(screen, (0,0,0), (int(X),int(Y)), 5)
@@ -143,10 +158,10 @@ def main():
              str(game.incorrect_flags) + "\n")
         csv.write(s)
 
-        banner = "MINESWEEPER    W: " + str(win) + " - L: " + str(lose)
-                  
-        #print "W: ", win, " - L: ", lose
-        #print s
+        banner = "Smartsweeper    W: " + str(win) + " - L: " + str(lose)
+        if DRAW: pygame.display.set_caption(banner)
+        print "W: ", win, " - L: ", lose
+        print s
 
         ################################################################
         # START NEW FILE AFTER chunk ITTERATIONS

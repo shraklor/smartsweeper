@@ -25,8 +25,8 @@ from pygame.locals import *
 from game import *
 from neural_network import *
 
-MAX_MOVES = 50000
-THRESH = .034
+MAX_MOVES = 15000
+THRESH = .044
 ################################################################################
 # Intelligent Agent
 ################################################################################
@@ -44,11 +44,12 @@ class Agent:
             nodes = [0] * len(names)
             nodes[i] = 1
             self.name2num_dict[names[i]] = nodes
-        self.nn = NeuralNet(9*len(names),20,9)
+        self.nn = NeuralNet(25*len(names),100,9)
         self.human = 0
         self.cheat = False
         self.thresh = THRESH
-        
+        self.goggles = 1
+
     def switch(self):
         self.human = 1 - self.human
             
@@ -99,7 +100,7 @@ class Agent:
 
         # GET INPUT FROM AREA AROUND YOU
         input = []
-        for pos in area:
+        for pos in area2:
             try:
                 name = self.game.board[pos]
                 nodes = self.name2num_dict[name]
@@ -137,6 +138,8 @@ class Agent:
                         self.switch()
                     if event.key == K_c:
                         self.cheat = bool(1 - int(self.cheat))
+                    if event.key == K_g:
+                        self.goggles = bool(1 - int(self.goggles))
 
                 # if something is clicked
                 elif event.type == MOUSEBUTTONDOWN and self.human:
@@ -145,58 +148,54 @@ class Agent:
                     if event.button == 3:
                         self.game.mark(self.pos)
 
+        output = self.nn.getOut(input)
+
+        # uncomment this to play perfectly (cheat)
+        # for learning examples quicker
+        if self.cheat:
+            print "cheating"
+            output = target
+        
+        # update your guesses for whether or not a square has a mine
+        for i in range(9):
+            try:
+                self.guess[area[i]] = self.guess[area[i]] * .9 + output[i] * .1
+            except:
+                pass # this just means we're looking out of bounds
+
+        ############################################################
+        # how certain are you that you've chosen correctly
+        ############################################################
+        best_guesses = [self.pos]
+        best = self.pos
+        lowest_errors = [1]
+        lowest = 1
+        global_certainty = 0
+        local_certainty = 0
+        for i in range(self.game.width):
+            for j in range(self.game.height):
+                g = self.guess[(i,j)]
+                err = min(g, 1-g) ** 2
+                if err < max(lowest_errors):
+                    lowest_errors.append(err)
+                    best_guesses.append((i,j))
+                    if len(best_guesses) > 2:
+                        best_guesses = best_guesses[1:]
+                        lowest_errors = lowest_errors[1:]
+                    if err < lowest:
+                        best = (i,j)
+                        lowest = err
+                global_certainty += 1 - err
+                if (i,j) in area:
+                    local_certainty += 1 - err
+        global_certainty /= float(self.game.width * self.game.height)
+        local_certainty /= float(self.game.width * self.game.height)
+
         ################################################################
         # BOT SPECIFIC STUFF
         ################################################################
         if not self.human:
-            output = self.nn.getOut(input)
-
-            # uncomment this to play perfectly (cheat)
-            # for learning examples quicker
-            if self.cheat:
-                print "cheating"
-                output = target
-            
-            # update your guesses for whether or not a square has a mine
-            for i in range(9):
-                try:
-                    self.guess[area[i]] = self.guess[area[i]] * .9 + output[i] * .1
-                except:
-                    pass # this just means we're looking out of bounds
-
-            ############################################################
-            # how certain are you that you've chosen correctly
-            ############################################################
-            best_guesses = [self.pos]
-            best = self.pos
-            lowest_errors = [1]
-            lowest = 1
-            global_certainty = 0
-            local_certainty = 0
-            for i in range(self.game.width):
-                for j in range(self.game.height):
-                    g = self.guess[(i,j)]
-                    err = min(g, 1-g) ** 2
-                    if err < max(lowest_errors):
-                        lowest_errors.append(err)
-                        best_guesses.append((i,j))
-                        if len(best_guesses) > 2:
-                            best_guesses = best_guesses[1:]
-                            lowest_errors = lowest_errors[1:]
-                        if err < lowest:
-                            best = (i,j)
-                            lowest = err
-                    global_certainty += 1 - err
-                    if (i,j) in area:
-                        local_certainty += 1 - err
-            global_certainty /= float(self.game.width * self.game.height)
-            local_certainty /= float(self.game.width * self.game.height)
-            
-            ############################################################
-            # CLICK AND STUFF
-            ############################################################
-            
-            # get the guess for the space you're on
+                    # get the guess for the space you're on
             out = self.guess[self.pos]
 
             name = self.game.board[self.pos]
