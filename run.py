@@ -26,9 +26,9 @@ from game import *
 from neural_network import *
 from agent import *
 
-LOAD_NN = False
+LOAD_NN = True
 SAVE_NN = True
-DRAW = False
+DRAW = True
 RECORD = False # this is really resource intensive
 HUMAN = False
 CHUNK = 200

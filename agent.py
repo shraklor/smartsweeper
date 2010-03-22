@@ -25,8 +25,8 @@ from pygame.locals import *
 from game import *
 from neural_network import *
 
-MAX_MOVES = 10000
-THRESH = .05
+MAX_MOVES = 50000
+THRESH = .034
 ################################################################################
 # Intelligent Agent
 ################################################################################
@@ -44,7 +44,7 @@ class Agent:
             nodes = [0] * len(names)
             nodes[i] = 1
             self.name2num_dict[names[i]] = nodes
-        self.nn = NeuralNet([9*len(names),20,9])
+        self.nn = NeuralNet(9*len(names),20,9)
         self.human = 0
         self.cheat = False
         self.thresh = THRESH
@@ -305,9 +305,8 @@ class Agent:
 
     def learn(self):
         # go through each move and back propogate rewards
-        a = 1.0 / (self.game.wins**2 + 10)
         for move in self.move_list:
-            self.nn.train(move[1], move[2], a)
+            self.nn.train(move[1], move[2])
         
     def reward(self, i, amt):
         self.state.rewards[i] += amt

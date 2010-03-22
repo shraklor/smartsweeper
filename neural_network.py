@@ -23,198 +23,80 @@
 import random, os, math
 from numpy import *
 import numpy.random as nrand
-from util import *
+
+################################################################################
+# Useful Vector Functions
+################################################################################
+def sigmoid(x):
+    return 1.0 / (1 + math.exp(-x))
+sigmoid = vectorize(sigmoid, otypes=[float])
+
+def sigPrime(x):
+    # in terms of the output of the sigmoid function
+    # otherwise would be sig(x) - sig^2(x)
+    return x - x ** 2
+sigPrime = vectorize(sigPrime, otypes=[float])
+
+def oneMinus(x):
+    return 1 - x
+oneMinus = vectorize(oneMinus, otypes=[float])
+
+def sub(x,y):
+    return x - y
+sub = vectorize(sub, otypes=[float])
 
 ################################################################################
 # Neural Network
 ################################################################################
 class NeuralNet:
-    def __init__(self, layers_list):
-        # layers list - number of nodes in each layer
-        self.layers_list = layers_list
-        self.num_layers = len(layers_list)
+    def __init__(self, i, h, o):
+        self.w_ih = mat(nrand.uniform(-.05,.05,(i,h)))
+        self.w_ho = mat(nrand.uniform(-.05,.05,(h,o)))
+        self.m_ih = mat(zeros((i,h)))
+        self.m_ho = mat(zeros((h,o)))
 
-        # initialize the weight arrays according to the layers_list
-        self.weights = []
-        self.momentum = []
-        for i in range(self.num_layers - 1):
+    def getOut(self, i):
+        self.h = sigmoid(mat(i) * self.w_ih)
+        return sigmoid(self.h * self.w_ho).tolist()[0]
 
-            array1 = randMat(layers_list[i], layers_list[i+1])
-            self.weights.append(array1)
-
-            array2 = zeroMat(layers_list[i], layers_list[i+1])
-            self.momentum.append(array2)
-
-    def getOut(self, a):
-        '''
-        # takes the input vector a and turns it into a (1 x n) matrix
-        a = [a]
-
-        # then dot a...
-        self.outputs = []
-        for weight_array in self.weights:
-            #  ...with our weight arrays
-            a = dotMats(a, weight_array)
-
-            # run it through our activation func
-            a = sigMat(a)
-
-            # append each output vector to a list
-            self.outputs.append(a[0])
-
-        # and outputs the final vector
-        return a[0]
-        '''
-
-        lay = self.layers_list
-        self.outputs = [a]
-
-        for layer in range(len(lay) - 1):
-            a = []
-            for j in range(lay[layer + 1]):
-                sum = 0.0
-                for i in range(lay[layer]):
-                    sum += self.outputs[layer][i] * self.weights[layer][i][j]
-                a.append(sigmoid(sum))
-            self.outputs.append(a)
-
-        return a
-
-    def getActionIndex(self):
-        # look at the final output vector
-        o = self.outputs[-1]
-
-        # find the highest values in the vector
-        max = 0
-        possible = []
-        threshold = .01
-        for i in range(len(o)):
-            if o[i] > max + threshold:
-                max = o[i]
-                possible = [i]
-                continue
-            if max - threshold <= o[i] <= max + threshold:
-                possible.append(i)
-
-        # pick a random one from the list
-        random.shuffle(possible)
-        return possible[0]
-
-    def train(self, input, target, rate = 1):
+    def train(self, i, t, a = .5, b = .1):
 
         # get output of our neural network
-        output = self.getOut(input)
-        '''
-        # back-propogate deltas for each output vector
-        err = subVectors(target, output)
-        deltas = mulMats(sigPrimeMat([self.outputs[-1]]), [err])
-
-        n = range(-self.num_layers + 2, 0)
-        n.reverse()
-        for i in n:
-            # calculate deltas
-            w = self.weights[i]
-            d = transMat([deltas[i]])
-            wdT = transMat(dotMats(w, d))
-            delta = mulMats(sigPrimeMat([self.outputs[i - 1]]), wdT)
-            deltas = delta + deltas
-
-            # update weights
-            T = transMat([self.outputs[i - 1]])
-            D = [deltas[i]]
-            change = dotMats(T, D)
-            W = self.weights[i]
-            self.weights[i] = addMats(addMats(W, scaleMat(rate, change)),
-                                      scaleMat(rate, self.momentum[i]))
-            self.momentum[i] = change
-        '''
-        ################### REMOVE
-
-        # calculate error terms for output
-        output_deltas = [0.0] * self.layers_list[-1]
-        for k in range(self.layers_list[-1]):
-            error = target[k]-self.outputs[-1][k]
-            output_deltas[k] = sigPrime(self.outputs[-1][k]) * error
-
-        # calculate error terms for hidden
-        hidden_deltas = [0.0] * self.layers_list[-2]
-        for j in range(self.layers_list[-2]):
-            error = 0.0
-            for k in range(self.layers_list[-1]):
-                error = error + output_deltas[k]*self.weights[-1][j][k]
-            hidden_deltas[j] = sigPrime(self.outputs[-2][j]) * error
-
-        N = .5
-        M = .1
-        # update output weights
-        for j in range(self.layers_list[-2]):
-            for k in range(self.layers_list[-1]):
-                change = output_deltas[k]*self.outputs[-2][j]
-                self.weights[-1][j][k] = self.weights[-1][j][k] + N*change + M*self.momentum[-1][j][k]
-                self.momentum[-1][j][k] = change
-                #print N*change, M*self.co[j][k]
-
-        # update input weights
-        for i in range(self.layers_list[0]):
-            for j in range(self.layers_list[1]):
-                change = hidden_deltas[j]*self.outputs[0][i]
-                self.weights[0][i][j] = self.weights[0][i][j] + N*change + M*self.momentum[0][i][j]
-                self.momentum[0][i][j] = change
-
-        ################### REMOVE
-
-        '''
-
-        # back-propogate deltas for each output vector
-        error = subVectors(target, output)
-        delta = [0.0] * self.layers_list[-1]
-        for k in range(self.layers_list[-1]):
-            delta[k] = sigPrime(self.outputs[-1][k]) * error[k]
-        deltas = [delta]
-
-        n = range(-self.num_layers + 3, 0)
-        n.reverse()
-        for i in n:
-            delta = [0.0] * self.layers_list[i]
-            for j in range(self.layers_list[i-1]):
-                error = 0.0
-                for k in range(self.layers_list[i]):
-                    error += deltas[i][k]*self.weights[i][j][k]
-                delta[j] = sigPrime(self.outputs[i-1][j]) * error
-            deltas = [delta] + deltas
-
-            # update output weights
-            for j in range(self.layers_list[i-1]):
-                for k in range(self.layers_list[1]):
-                    change = deltas[i-1][k] * self.outputs[i-1][j]
-                    self.weights[i][j][k] = self.weights[i][j][k] + N*change + M*self.momentum[i][j][k]
-                    self.momentum[i][j][k] = change
-        '''
-
-        output = self.getOut(input)
-        error = 0
-        for i in range(len(output)):
-            error += (target[i] - output[i]) ** 2
-        return error / float(len(output))
+        out = mat(self.getOut(i))
+        
+        # calc deltas
+        d_o = mat(asarray(out) * asarray(oneMinus(out)) *
+                  asarray(sub(mat(t), out)))
+        d_h = mat(asarray(self.h) * asarray(oneMinus(self.h)) *
+                  asarray(d_o * self.w_ho.T))
+        
+        # update weights
+        c_ih = mat(i).T * d_h
+        self.w_ih = add(add(self.w_ih, a * c_ih), b * self.m_ih)
+        self.m_ih = c_ih
+        c_ho = self.h.T * d_o
+        self.w_ho = add(add(self.w_ho, a * c_ho), b * self.m_ho)
+        self.m_ho = c_ho
 
 ################################################################################
 # example
 ################################################################################
 def main():
 
-    layers = [2,2,1]
-    nn = NeuralNet(layers)
+    nn = NeuralNet(2,10,1)
+    examples = [([0,1], [1]),
+                ([1,1], [0]),
+                ([1,0], [1]),
+                ([0,0], [0])]
+
     for i in range(10000):
-        nn.train([0,1], [1], .1)
-        nn.train([1,1], [0], .1)
-        nn.train([1,0], [1], .1)
-        nn.train([0,0], [0], .1)
+        x = random.randint(0,4)
+        nn.train(examples[x][0], examples[x][1], 3)
 
     print nn.getOut([0,1])
     print nn.getOut([1,1])
     print nn.getOut([1,0])
     print nn.getOut([0,0])
-    print nn.getOut([-1,0])
 
 if __name__ == '__main__':
     main()
