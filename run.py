@@ -28,11 +28,14 @@ from agent import *
 
 LOAD_NN = True
 SAVE_NN = True
+LEARN = True
 DRAW = True
 RECORD = False # this is really resource intensive
 HUMAN = False
+TILES = False
 CHUNK = 200
 OUTPUT_TEXT = "win_pct,sq_err,pct_cor,cleared,cor_digs,inc_digs,cor_flags,inc_flags\n"
+DIFF = 0
 
 def getErrors(game, agent):
     sq_err = 0
@@ -47,21 +50,30 @@ def getErrors(game, agent):
     return sq_err, correct
     
 def main():
-    w = 8#30
-    h = 8#16
-    m = 10#99
+    if DIFF == 0:
+        w = 8
+        h = 8
+        m = 10
+        t = 64
+    if DIFF == 1:
+        w = 16
+        h = 16
+        m = 40
+        t = 32
+    if DIFF == 2:
+        w = 30
+        h = 16
+        m = 99
+        t = 32
     s = ""
-    
+
     # create your game board
-    game = Game(w, h, m, draw = DRAW, tile_size = 64)
+    game = Game(w, h, m, draw = DRAW, tile_size = t)
     count = 0
     frame = 0
     banner = "Smartsweeper    W:0 - L:0"
-    if DRAW: pygame.display.set_caption(banner)
-    
-    # draw if you want
-    if game.draw_board:
-        t = game.tile_size
+    if DRAW: 
+        pygame.display.set_caption(banner)
         screen = pygame.display.set_mode((w * t, h * t))
 
     # create your players
@@ -111,12 +123,14 @@ def main():
             '''
             if game.draw_board:
                 game.clock.tick()#60) #to pace the bot
-                screen.blit(game.surface, (0,0))
+                if agent.goggles == 0 or agent.goggles == 1:
+                    screen.blit(game.surface, (0,0))
 
                 # DRAW AGENT'S GUESS
                 # purple = mine, yellow = not mine
                 # transparent = certain, opaque = not sure
-                if agent.goggles:
+                if agent.goggles == 1 or agent.goggles == 2:
+                    temp = pygame.Surface((w,h))
                     tran = pygame.Surface((t-1, t-1))
                     for i in range(w):
                         for j in range(h):
@@ -177,7 +191,8 @@ def main():
         ################################################################
         # LEARN!!!
         ################################################################
-        agent.learn()
+        if LEARN:
+            agent.learn()
         agent.clearMoves()
         
         ################################################################

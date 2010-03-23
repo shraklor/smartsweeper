@@ -20,6 +20,8 @@
 #       Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #       MA 02110-1301, USA.
 
+OPEN_FIRST = False # can you lose on first click?
+
 import random, pygame, os, math
 from numpy import *
 import numpy.random as nrand
@@ -137,13 +139,14 @@ class Game:
             self.incorrect_digs += 1
         return cleared
 
-    def clear(self, pos):
+    def clear(self, pos, auto = False):
         cleared = 0
         x = pos[0]
         y = pos[1]
             
         # if the space has a mine and it's not your first move
-        if self.mine_array[pos] == 1 and not self.first_click:
+        if (self.mine_array[pos] == 1 and 
+            (not self.first_click or not OPEN_FIRST)):
 
             # go through every space on the board
             for h in range(self.height):
@@ -179,7 +182,7 @@ class Game:
             self.done = True
 
         # if it's your first click
-        if self.first_click:
+        if self.first_click and OPEN_FIRST:
             self.first_click = False
             area = [(x-1, y-1), (x, y-1), (x+1, y-1),
                     (x-1, y),   (x, y),   (x+1, y),
@@ -242,16 +245,18 @@ class Game:
                         pass # invalid position
 
                 # if the number of flags is your number
-                if flags == int(self.board[pos]):
+                if ((flags == int(self.board[pos]) and not auto) or
+                    int(self.board[pos]) == 0):
 
                     # clear all of the unknown spaces around you
                     for s in area:
                         try:
                             if self.board[s] == "_":
-                                cleared += self.clear(s)
+                                cleared += self.clear(s, True)
                         except:
                             pass # invalid position
-
+                
+           
         return cleared
 
     def isWon(self):

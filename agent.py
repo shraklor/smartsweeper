@@ -25,8 +25,8 @@ from pygame.locals import *
 from game import *
 from neural_network import *
 
-MAX_MOVES = 15000
-THRESH = .044
+MAX_MOVES = 50000
+THRESH = .1
 ################################################################################
 # Intelligent Agent
 ################################################################################
@@ -48,7 +48,7 @@ class Agent:
         self.human = 0
         self.cheat = False
         self.thresh = THRESH
-        self.goggles = 1
+        self.goggles = 0
 
     def switch(self):
         self.human = 1 - self.human
@@ -139,7 +139,7 @@ class Agent:
                     if event.key == K_c:
                         self.cheat = bool(1 - int(self.cheat))
                     if event.key == K_g:
-                        self.goggles = bool(1 - int(self.goggles))
+                        self.goggles = (self.goggles + 1) % 3
 
                 # if something is clicked
                 elif event.type == MOUSEBUTTONDOWN and self.human:
@@ -195,11 +195,11 @@ class Agent:
         # BOT SPECIFIC STUFF
         ################################################################
         if not self.human:
-                    # get the guess for the space you're on
+            # get the guess for the space you're on
             out = self.guess[self.pos]
 
             name = self.game.board[self.pos]
-            self.thresh *= 1.01
+            self.thresh *= 1.0001
             if len(self.move_list) < MAX_MOVES:
                 if (out <= self.thresh and name == "f"):
                     self.game.mark(self.pos)
@@ -242,16 +242,16 @@ class Agent:
                     brn = "012345678"
                     if (a in grn) and (self.game.board[pos] in brn):
                         possible.append(pos)
-                    if ((a in brn) and
-                        (self.game.board[pos] in grn) and
-                        (pos in von_neumann)):
-                        possible.append(pos)
+                    #if ((a in brn) and
+                    #    (self.game.board[pos] in grn) and
+                    #    (pos in von_neumann)):
+                    #    possible.append(pos)
                 except: pass
                     
             # if this isn't possible, anywhere is fine
             if len(possible) == 0:
                 possible = area
-                
+            
             # find the spot you've visited least
             m = 9999999999
             s = []
@@ -270,12 +270,11 @@ class Agent:
             random.shuffle(s)
 
             # move to the best guess on the board
-            """
-            if random.random() > .99:
-                print "here"
+
+            if len(self.move_list) % 80 == 0:
                 random.shuffle(best_guesses)
                 self.pos = best_guesses[0]
-            """
+
             # and go to it
             self.pos = s[0]
             self.visited[self.pos] += 1
