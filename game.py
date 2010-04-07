@@ -20,7 +20,7 @@
 #       Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #       MA 02110-1301, USA.
 
-OPEN_FIRST = False # can you lose on first click?
+OPEN_FIRST = False # false to lose on first click
 
 import random, pygame, os, math
 from numpy import *
@@ -48,6 +48,7 @@ class Game:
         self.reset()
 
     def reset(self):
+        self.did_change = True
         self.left_clicks = 0
         self.cleared = 0
         self.correct_digs = 0
@@ -89,6 +90,7 @@ class Game:
         return pygame.image.load(os.path.join("images", name + ".png"))
 
     def upTile(self, pos, symbol):
+        self.did_change = True
         self.board[pos] = symbol
 
         #draw stuff if drawing turned on

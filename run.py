@@ -32,10 +32,9 @@ LEARN = True
 DRAW = True
 RECORD = False # this is really resource intensive
 HUMAN = False
-TILES = False
 CHUNK = 200
 OUTPUT_TEXT = "win_pct,sq_err,pct_cor,cleared,cor_digs,inc_digs,cor_flags,inc_flags\n"
-DIFF = 0
+DIFF = 2
 
 def getErrors(game, agent):
     sq_err = 0
@@ -71,7 +70,7 @@ def main():
     game = Game(w, h, m, draw = DRAW, tile_size = t)
     count = 0
     frame = 0
-    banner = "Smartsweeper    W:0 - L:0"
+    banner = "W:0 - L:0"
     if DRAW: 
         pygame.display.set_caption(banner)
         screen = pygame.display.set_mode((w * t, h * t))
@@ -144,11 +143,18 @@ def main():
                 x, y = agent.pos
                 X, Y = x * t + t/2.0, y * t + t/2.0
                 pygame.draw.circle(screen, (0,0,0), (int(X),int(Y)), 5)
-                if RECORD:
+
+                ########################################################
+                # MAKE A MOVIE
+                ########################################################
+                if RECORD and game.did_change:
+                    print "recording"
+                    old_board = copy(game.board)
                     pygame.image.save(screen, os.path.join("video", str(frame) + ".png"))
                     frame += 1
                 pygame.display.flip()
-
+                game.did_change = False
+                
         ################################################################
         # compare agent's map of minefield to actual
         ################################################################
@@ -172,7 +178,7 @@ def main():
              str(game.incorrect_flags) + "\n")
         csv.write(s)
 
-        banner = "Smartsweeper    W: " + str(win) + " - L: " + str(lose)
+        banner = "W: " + str(win) + " - L: " + str(lose)
         if DRAW: pygame.display.set_caption(banner)
         print "W: ", win, " - L: ", lose
         print s

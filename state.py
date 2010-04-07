@@ -24,14 +24,14 @@
 # THIS ONE IS NOT USED ANY LONGER
 ################################################################################
 
-import random, pygame, os, math
+import random, pygame, os, math, copy
 from numpy import *
 import numpy.random as nrand
 ################################################################################
 # State-action-reward thing
 ################################################################################
 class State:
-    def __init__(self, array, rewards = [100,-100,0,0,0,0,0]):
+    def __init__(self, array, rewards = [.5,.5,.5,.5,.5,.5]):
         self.actions = "LRJNESW"
         self.rewards = rewards
         self.getSym(array)
@@ -103,58 +103,51 @@ class State:
         return False
 
     def getAction(self):
-        #print self.actions # a string of moves
-        #print self.rewards # a list of rewards
-
-        self.action_index = 0
-        reward = -9999999999999
-        #print "$", reward, self.rewards[0]
-        # check all actions
-        for i in range(len(self.rewards)):
-            r = self.rewards[i]
-
-            # keep group of rewards
-            # find maximum reward
-            if r > reward:
-                reward = r
-                self.action_index = i
-            #print "$", reward, r
-
-
-        self.action_index = random.randint(0,len(self.rewards) - 1)
-        r = self.rewards[self.action_index]
-        a = self.actions[self.action_index]
-        #print a
-        return r, a
+        size = float(sum(self.rewards))
+        for i in len(self.rewards):
+            self.rewards[key] /= size
+        rand = random.random()
+        action = "L"
+        left = 0.0
+        for a in self.actions:
+            if left <= rand < (self.rewards[a] + left):
+                action = a
+                break
+            left += self.rewards[a]
+        return action
 
 ################################################################################
 # example
 ################################################################################
+def main():
 
-a = [["_","N","_"],
-     ["W","_","E"],
-     ["_","S","_"]]
-state = State(a)
-print state.actions
+    a = [["_","N","_"],
+         ["W","_","E"],
+         ["_","S","_"]]
+    state = State(a)
+    print state.actions
 
-b = [["_","S","_"],
-     ["W","_","E"],
-     ["_","N","_"]]
+    b = [["_","S","_"],
+         ["W","_","E"],
+         ["_","N","_"]]
 
-c = [["_","S","_"],
-     ["N","_","W"],
-     ["_","E","_"]]
+    c = [["_","S","_"],
+         ["N","_","W"],
+         ["_","E","_"]]
 
-d = [["_","S","_"],
-     ["E","_","W"],
-     ["_","N","_"]]
-print state.isMatch(b)
-print state.actions
+    d = [["_","S","_"],
+         ["E","_","W"],
+         ["_","N","_"]]
+    print state.isMatch(b)
+    print state.actions
 
-print state.isMatch(c)
-print state.actions
+    print state.isMatch(c)
+    print state.actions
 
-print state.isMatch(d)
-print state.actions
+    print state.isMatch(d)
+    print state.actions
 
-state.printSym()
+    state.printSym()
+    
+if __name__ == '__main__':
+    main()

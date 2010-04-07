@@ -59,7 +59,7 @@ class NeuralNet:
         self.h = sigmoid(mat(i) * self.w_ih)
         return sigmoid(self.h * self.w_ho).tolist()[0]
 
-    def train(self, i, t, a = .5, b = .1):
+    def train(self, i, t, a = .1, b = .01):
 
         # get output of our neural network
         out = mat(self.getOut(i))
@@ -90,6 +90,7 @@ def main():
                 ([0,0], [0])]
 
     for i in range(10000):
+        print i
         x = random.randint(0,4)
         nn.train(examples[x][0], examples[x][1], 3)
 

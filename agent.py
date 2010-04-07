@@ -23,10 +23,14 @@
 import random, pygame, os
 from pygame.locals import *
 from game import *
+from state import *
 from neural_network import *
 
-MAX_MOVES = 50000
-THRESH = .1
+MAX_MOVES = 300000
+THRESH = .11
+INPUT_GRID = 5
+OUTPUT_GRID = 3
+CHANGE = 1.0001
 ################################################################################
 # Intelligent Agent
 ################################################################################
@@ -34,8 +38,6 @@ THRESH = .1
 class Agent:
     def __init__(self, game):
         self.game = game
-        self.old_pos = (0,0)
-        self.pos = (0,0)
         self.clearMoves()
         self.name2num_dict = {}
         names = "_012345678f"
@@ -44,17 +46,25 @@ class Agent:
             nodes = [0] * len(names)
             nodes[i] = 1
             self.name2num_dict[names[i]] = nodes
-        self.nn = NeuralNet(25*len(names),100,9)
+        a = (INPUT_GRID**2)*len(names)
+        b = OUTPUT_GRID**2        
+        self.nn = NeuralNet(a,int((3*a+2*b)/5),b)
         self.human = 0
         self.cheat = False
-        self.thresh = THRESH
-        self.goggles = 0
+
+        self.goggles = 1
+        self.memory = []
 
     def switch(self):
         self.human = 1 - self.human
             
     def clearMoves(self):
+        self.closed = []
+        self.thresh = 1
+        self.old_pos = (0,0)
         self.pos = (0,0)
+        self.old_action = "L"
+        self.action = "L"
         self.move_list = []
         self.guess = {}
         self.visited = {}
@@ -94,8 +104,8 @@ class Agent:
         x, y = self.pos
         
         # figure out where your are and what's around you
-        area = self.getArea(x,y,3)
-        area2 = self.getArea(x,y,5)
+        area = self.getArea(x,y,OUTPUT_GRID)
+        area2 = self.getArea(x,y,INPUT_GRID)
 
 
         # GET INPUT FROM AREA AROUND YOU
@@ -147,7 +157,10 @@ class Agent:
                         cleared = self.game.dig(self.pos)
                     if event.button == 3:
                         self.game.mark(self.pos)
-
+                        
+        ################################################################
+        # get output from neural net
+        ################################################################
         output = self.nn.getOut(input)
 
         # uncomment this to play perfectly (cheat)
@@ -157,12 +170,41 @@ class Agent:
             output = target
         
         # update your guesses for whether or not a square has a mine
-        for i in range(9):
+        for i in range(OUTPUT_GRID**2):
             try:
-                self.guess[area[i]] = self.guess[area[i]] * .9 + output[i] * .1
+                output[i] = self.guess[area[i]] * .9 + output[i] * .1
+                self.guess[area[i]] = output[i]
             except:
                 pass # this just means we're looking out of bounds
 
+
+        ################################################################
+        # from that output, get a state for Q-learning
+        ################################################################
+        '''
+        out_array = []
+        count = 0
+        for a in range(3):
+            out_array.append([])
+            for b in range(3):
+                if output[count] < .5: o = 0
+                else: o = 1
+                out_array[a].append(o)
+                count += 1
+
+        found = False
+        for state in self.memory:
+            found = state.isMatch(out_array)
+            if found:
+                s = state
+                break
+        if not found:
+            s = State(out_array)
+            self.memory.append(s)
+
+        # finish this
+        s.getAction()
+        '''
         ############################################################
         # how certain are you that you've chosen correctly
         ############################################################
@@ -176,18 +218,21 @@ class Agent:
             for j in range(self.game.height):
                 g = self.guess[(i,j)]
                 err = min(g, 1-g) ** 2
+                global_certainty += 1 - err
+                if (i,j) in area:
+                    local_certainty += 1 - err
+                if (i,j) in self.closed:
+                    continue
                 if err < max(lowest_errors):
                     lowest_errors.append(err)
                     best_guesses.append((i,j))
-                    if len(best_guesses) > 2:
+                    if len(best_guesses) > 4:
                         best_guesses = best_guesses[1:]
                         lowest_errors = lowest_errors[1:]
                     if err < lowest:
                         best = (i,j)
                         lowest = err
-                global_certainty += 1 - err
-                if (i,j) in area:
-                    local_certainty += 1 - err
+
         global_certainty /= float(self.game.width * self.game.height)
         local_certainty /= float(self.game.width * self.game.height)
 
@@ -199,20 +244,26 @@ class Agent:
             out = self.guess[self.pos]
 
             name = self.game.board[self.pos]
-            self.thresh *= 1.0001
+            self.thresh *= CHANGE
             if len(self.move_list) < MAX_MOVES:
-                if (out <= self.thresh and name == "f"):
-                    self.game.mark(self.pos)
-                    self.thresh = THRESH
-                elif (out >= 1 - self.thresh and name != "f"):
-                    self.game.mark(self.pos)
-                    self.visited[self.pos] += 1
-                    self.thresh = THRESH
-                elif out <= self.thresh and name != "f":
+                if out <= self.thresh * .55 and name != "f":
+                    print "dig"
+                    self.close(self.pos)
                     cleared = self.game.dig(self.pos) # how many spaces we cleared
                     self.visited[(x,y)] += 5
                     if name not in "012345678":
                         self.thresh = THRESH
+                elif (out <= self.thresh and name == "f"):
+                    print "unflag"
+                    self.open(self.pos)
+                    self.game.mark(self.pos)
+                    self.thresh = THRESH
+                elif (out >= 1 - self.thresh and name != "f"):
+                    print "flag"
+                    self.close(self.pos)
+                    self.game.mark(self.pos)
+                    self.visited[self.pos] += 1
+                    self.thresh = THRESH
 
             # if you've gone so many moves without ending the game, do it
             elif name == "f":
@@ -270,13 +321,12 @@ class Agent:
             random.shuffle(s)
 
             # move to the best guess on the board
-
-            if len(self.move_list) % 80 == 0:
+            if len(self.move_list) % 20 == 0:
                 random.shuffle(best_guesses)
                 self.pos = best_guesses[0]
-
+                
             # and go to it
-            self.pos = s[0]
+            else: self.pos = s[0]
             self.visited[self.pos] += 1
 
         ################################################################
@@ -284,7 +334,7 @@ class Agent:
         ################################################################
         self.move_list.append([self.pos, input, target])
 
-    def backPropogate(self, move, reward, threshold = .05, decay = .7):
+    def QLearn(self, move, reward, threshold = .05, decay = .7):
         # while there's reward and states left
         while reward > threshold and move >= 0:
 
@@ -301,6 +351,14 @@ class Agent:
             move -= 1
             reward *= decay
 
+    def open(self, pos):
+        if pos in self.closed:
+            self.closed.remove(pos)
+            
+    def close(self, pos):
+        if pos not in self.closed:
+            self.closed.append(pos)
+            
     def learn(self):
         # go through each move and back propogate rewards
         for move in self.move_list:
