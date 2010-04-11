@@ -29,16 +29,18 @@ from numpy import *
 import numpy.random as nrand
 
 OPEN_FIRST = False # false to be able to lose on first click
-LOAD_NN = True
+LOAD_NN = False
 SAVE_NN = True
 LEARN = True
 DRAW = True
 RECORD = False # this is really resource intensive
 HUMAN = False
 CHUNK = 200
+SAVE_INT = 10
 OUTPUT_TEXT = "win_pct,sq_err,pct_cor,cleared,cor_digs,inc_digs,cor_flags,inc_flags\n"
 DIFF = 0
-AGENTS = 100
+DIFF_MINDS = True
+AGENTS = 5
 
 class Game:
     def __init__(self, width, height, mines, draw = True, tile_size = 32):
@@ -65,6 +67,7 @@ class Game:
 
     def reset(self):
         self.goggles = 1
+        self.FINISHED = False
         self.did_change = True
         self.left_clicks = 0
         self.cleared = 0
@@ -103,7 +106,6 @@ class Game:
                 self.upTile((w, h), "_")
 
     def throwTowel(self):
-        print "towel"
         self.towel_thrown = 1
         
     def loadImg(self, name):
@@ -299,10 +301,23 @@ class Game:
         self.cleared = cleared
         if (cleared == ((self.width * self.height) - self.mines) and
             covered == self.mines):
-            self.done = True
-        else: self.done = False
-        return self.done
+            self.FINISHED = True
+            return True
+        self.FINISHED = False
+        return False
 
+    def getErrors(self):
+        sq_err = 0
+        correct = 0
+        for x in range(self.width):
+            for y in range(self.height):
+                err = abs(self.mine_array[(x,y)] - self.guess[(x,y)])
+                sq_err += err ** 2
+                if err < .5: correct += 1
+        sq_err /= float(self.width * self.height)
+        correct /= float(self.width * self.height)
+        return sq_err, correct
+        
 
 ################################################################################
 # example
@@ -325,18 +340,6 @@ def randomGame():
         try: input()
         except: pass
 
-def getErrors(game, agent):
-    sq_err = 0
-    correct = 0
-    for x in range(game.width):
-        for y in range(game.height):
-            err = abs(game.mine_array[(x,y)] - game.guess[(x,y)])
-            sq_err += err ** 2
-            if err < .5: correct += 1
-    sq_err /= float(game.width * game.height)
-    correct /= float(game.width * game.height)
-    return sq_err, correct
-    
 def main():
     if DIFF == 0:
         w = 8
@@ -371,23 +374,33 @@ def main():
         alist.append(Agent(game))
     #agent.cheat = True
     if HUMAN:
-        for agent in alist:
-            agent.switch()
+        alist[0].switch()
 
     ####################################################################
     # load your saved neural net from a file
     ####################################################################
     if LOAD_NN:
-        try:
-            f = open(os.path.join("data","nn.obj"), "r")
-            alist[0].nn = pickle.load(f)
-            for agent in alist:
-                agent.nn = alist[0].nn
-            print "Loading neural network."
-            f.close()
-        except:
-            #print sys.exc_info()
-            print "Couldn't load mind. Creating one."
+        if DIFF_MINDS:
+            for i in range(len(alist)):
+                try:
+                    f = open(os.path.join("data","nn" + str(i) + ".obj"), "r")
+                    alist[i].nn = pickle.load(f)
+                    print "Loading neural network."
+                    f.close()
+                except:
+                    #print sys.exc_info()
+                    print "Couldn't load mind. Creating one."
+        else:
+            try:
+                f = open(os.path.join("data","nn.obj"), "r")
+                alist[0].nn = pickle.load(f)
+                for agent in alist:
+                    agent.nn = alist[0].nn
+                print "Loading neural network."
+                f.close()
+            except:
+                #print sys.exc_info()
+                print "Couldn't load mind. Creating one."
 
     ####################################################################
     # create a log file
@@ -456,9 +469,12 @@ def main():
                             tran.set_alpha(int(g / 1.4))
                             screen.blit(tran, (i * t + 1, j * t + 1))
                 
+                ########################################################
+                # DRAW EACH AGENT
+                ########################################################
                 for agent in alist:
                     x, y = agent.pos
-                    rx, ry = random.randint(-7,7), random.randint(-7,7)
+                    rx, ry = random.randint(-t/3,t/3), random.randint(-t/3,t/3)
                     X, Y = x * t + t/2.0 + rx, y * t + t/2.0 + ry
                     pygame.draw.circle(screen, (0,0,0), (int(X),int(Y)), 3)
 
@@ -476,7 +492,7 @@ def main():
         ################################################################
         # compare agent's map of minefield to actual
         ################################################################
-        sq_err, correct = getErrors(game, alist[0])
+        sq_err, correct = game.getErrors()
 
         ################################################################
         # print results to file
@@ -516,27 +532,42 @@ def main():
         # LEARN!!!
         ################################################################
         if LEARN:
-            nn = alist[0].nn
-            for agent in alist:
-                agent.nn = nn
-                agent.learn()
-                nn = agent.nn
-            for agent in alist:
-                agent.nn = nn
-                agent.memory = alist[0].memory
+            if DIFF_MINDS:
+                for agent in alist:
+                    agent.learn()
+            else:
+                nn = alist[0].nn
+                for agent in alist:
+                    agent.nn = nn
+                    agent.learn()
+                    nn = agent.nn
+                for agent in alist:
+                    agent.nn = nn
+                    agent.memory = alist[0].memory
         
         ################################################################
         # SAVE NN
         ################################################################
-        if SAVE_NN:
-            try:
-                f = open(os.path.join("data","nn.obj"), "w")
-                pickle.dump(alist[0].nn, f)
-                print "Saving your neural network."
-                f.close()
-            except:
-                #pass
-                print "Couldn't save your neural network."
+        if SAVE_NN and count % SAVE_INT == 0:
+            if DIFF_MINDS:
+                for i in range(len(alist)):
+                    try:
+                        f = open(os.path.join("data","nn" + str(i) + ".obj"), "w")
+                        pickle.dump(alist[i].nn, f)
+                        print "Saving your neural network."
+                        f.close()
+                    except:
+                        #pass
+                        print "Couldn't save your neural network."
+            else:
+                try:
+                    f = open(os.path.join("data","nn.obj"), "w")
+                    pickle.dump(alist[0].nn, f)
+                    print "Saving your neural network."
+                    f.close()
+                except:
+                    #pass
+                    print "Couldn't save your neural network."
 
         ################################################################
         # RESET BOARD

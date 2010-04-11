@@ -28,14 +28,14 @@ from neural_network import *
 
 ALPHA = .05
 BETA = .01
-MAX_MOVES = 4200
-MOVES_LEARNED = 500
-THRESH = .016
-INITIAL = .9
+MAX_MOVES = 42000
+MOVES_LEARNED = 4200
+THRESH = .14
+INITIAL = .7
 INPUT_GRID = 5
 OUTPUT_GRID = 3
-CHANGE = 1.0004
-WEIGHT = .07
+CHANGE = 1.0028
+WEIGHT = .03
 
 ################################################################################
 # Intelligent Agent
@@ -63,6 +63,7 @@ class Agent:
         self.human = 1 - self.human
             
     def clearMoves(self):
+        self.num_moves = 0
         self.closed = []
         self.thresh = INITIAL# * random.uniform(.01, 7)
         self.old_pos = (0,0)
@@ -106,9 +107,10 @@ class Agent:
 
         name = self.game.board[self.pos]
         self.thresh *= CHANGE
-        if len(self.move_list) == MAX_MOVES:
+        m = self.num_moves
+        if m == MAX_MOVES:
             print "max moves exceeded"
-        if len(self.move_list) < MAX_MOVES:
+        if m < MAX_MOVES:
             if out <= self.thresh * .65 and name != "f":
                 #print "dig"
                 self.close(self.pos)
@@ -195,7 +197,7 @@ class Agent:
         self.visited[self.pos] += 1
         
     def act(self):
-        if not self.game.done:
+        if not self.game.FINISHED:
             self.old_pos = self.pos
             x,y = self.pos
             
@@ -362,9 +364,10 @@ class Agent:
             # Remember what you've done.
             ################################################################
             self.move_list.append([self.pos, input, target])#, state, action_i])
-            if len(self.move_list) > MOVES_LEARNED:
+            if self.num_moves > MOVES_LEARNED:
                 r = random.randint(0, len(self.move_list))
                 self.move_list = self.move_list[:r] + self.move_list[r+1:]
+            self.num_moves += 1
 
 
     def getCertainty(self):
@@ -428,9 +431,9 @@ class Agent:
         # go through each move and back propogate rewards
         for i in range(len(self.move_list)):
             move = self.move_list[i]
-            a = random.uniform(.01, 10)
-            b = random.uniform(.01, 10)
-            self.nn.train(move[1], move[2], ALPHA, BETA)
+            a = random.uniform(.001, 2)
+            b = random.uniform(.0001, 1)
+            self.nn.train(move[1], move[2], ALPHA * a, BETA * b)
             #q-learn
         
     def reward(self, i, amt):
