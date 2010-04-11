@@ -28,7 +28,7 @@ from agent import *
 from numpy import *
 import numpy.random as nrand
 
-OPEN_FIRST = True # false to be able to lose on first click
+OPEN_FIRST = False # false to be able to lose on first click
 LOAD_NN = True
 SAVE_NN = True
 LEARN = True
@@ -37,8 +37,8 @@ RECORD = False # this is really resource intensive
 HUMAN = False
 CHUNK = 200
 OUTPUT_TEXT = "win_pct,sq_err,pct_cor,cleared,cor_digs,inc_digs,cor_flags,inc_flags\n"
-DIFF = 2
-AGENTS = 30
+DIFF = 0
+AGENTS = 100
 
 class Game:
     def __init__(self, width, height, mines, draw = True, tile_size = 32):
@@ -65,7 +65,6 @@ class Game:
 
     def reset(self):
         self.goggles = 1
-        self.FINISHED = False
         self.did_change = True
         self.left_clicks = 0
         self.cleared = 0
@@ -88,8 +87,8 @@ class Game:
 
         self.pos_li = []
         while len(self.pos_li) != self.mines:
-            rand_x = random.randint(0, self.width - 1)
-            rand_y = random.randint(0, self.height - 1)
+            rand_x = random.randint(0, self.width)
+            rand_y = random.randint(0, self.height)
             pos = (rand_x, rand_y)
 
             if pos not in self.pos_li:
@@ -104,6 +103,7 @@ class Game:
                 self.upTile((w, h), "_")
 
     def throwTowel(self):
+        print "towel"
         self.towel_thrown = 1
         
     def loadImg(self, name):
@@ -146,20 +146,22 @@ class Game:
             return False
 
     def dig(self, pos):
-        self.left_clicks += 1
-        "surely dig and clear can be merged"
-        "things get funky with recursion"
-        # clear a space and see if you win
-        cleared = self.clear(pos)
-        if self.isWon():
-            self.wins += 1
-            self.result = 1
-            self.done = True
-        if cleared > 0:
-            self.correct_digs += 1
-        elif cleared == 0:
-            self.incorrect_digs += 1
-        return cleared
+        cleared = 0
+        if not self.done:
+            self.left_clicks += 1
+            "surely dig and clear can be merged"
+            "things get funky with recursion"
+            # clear a space and see if you win
+            cleared = self.clear(pos)
+            if self.isWon():
+                self.wins += 1
+                self.result = 1
+                self.done = True
+            if cleared > 0:
+                self.correct_digs += 1
+            elif cleared == 0:
+                self.incorrect_digs += 1
+            return cleared
 
     def clear(self, pos, auto = False):
         cleared = 0
@@ -297,10 +299,9 @@ class Game:
         self.cleared = cleared
         if (cleared == ((self.width * self.height) - self.mines) and
             covered == self.mines):
-            self.FINISHED = True
-            return True
-        self.FINISHED = False
-        return False
+            self.done = True
+        else: self.done = False
+        return self.done
 
 
 ################################################################################

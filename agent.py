@@ -26,15 +26,16 @@ from game import *
 from state import *
 from neural_network import *
 
-ALPHA = .1
-BETA = .03
-MAX_MOVES = 42000
-MOVES_LEARNED = 200
-THRESH = .02
+ALPHA = .05
+BETA = .01
+MAX_MOVES = 4200
+MOVES_LEARNED = 500
+THRESH = .016
+INITIAL = .9
 INPUT_GRID = 5
 OUTPUT_GRID = 3
-CHANGE = 1.002
-WEIGHT = .02
+CHANGE = 1.0004
+WEIGHT = .07
 
 ################################################################################
 # Intelligent Agent
@@ -63,7 +64,7 @@ class Agent:
             
     def clearMoves(self):
         self.closed = []
-        self.thresh = THRESH * random.uniform(.01, 3)
+        self.thresh = INITIAL# * random.uniform(.01, 7)
         self.old_pos = (0,0)
         self.pos = (0,0)
         self.old_action = "L"
@@ -113,9 +114,9 @@ class Agent:
                 self.close(self.pos)
                 cleared = self.game.dig(self.pos) # how many spaces we cleared
                 #self.visited[(x,y)] += 5
-                if name not in "012345678":
-                    self.thresh = THRESH
-            elif (out <= self.thresh and name == "f"):
+                #if name not in "012345678":
+                self.thresh = THRESH
+            elif (out * .85 <= self.thresh and name == "f"):
                 #print "unflag"
                 #self.open(self.pos)
                 self.game.mark(self.pos)
@@ -146,21 +147,22 @@ class Agent:
         # if you're on green, move to brown (most of the time)
         von_neumann = [(x,y+1),(x,y-1),(x+1,y),(x-1,y)]
         possible = []
-        '''for pos in self.area:
-            if self.pos == pos:
-                continue
-            try:
-                a = self.game.board[self.pos]
-                grn = "_f"
-                brn = "012345678"
-                if (a in grn) and (self.game.board[pos] in brn):
-                    possible.append(pos)
-                #if ((a in brn) and
-                #    (self.game.board[pos] in grn) and
-                #    (pos in von_neumann)):
-                #    possible.append(pos)
-            except: pass
-        '''       
+        if random.random() < .5:
+            for pos in self.area:
+                if self.pos == pos:
+                    continue
+                try:
+                    a = self.game.board[self.pos]
+                    grn = "_f"
+                    brn = "012345678"
+                    if (a in grn) and (self.game.board[pos] in brn):
+                        possible.append(pos)
+                    #if ((a in brn) and
+                    #    (self.game.board[pos] in grn) and
+                    #    (pos in von_neumann)):
+                    #    possible.append(pos)
+                except: pass
+               
         # if this isn't possible, anywhere is fine
         if len(possible) == 0:
             possible = self.area
@@ -183,17 +185,17 @@ class Agent:
         random.shuffle(s)
 
         # move to the best guess on the board
-        #if len(self.move_list) % random.randint(15,30) == 0:
-        #    random.shuffle(self.best_guesses)
-        #    self.pos = self.best_guesses[0]
+        if random.random() < .3:
+            random.shuffle(self.best_guesses)
+            self.pos = self.best_guesses[0]
             
         # and go to it
-        #else: 
-        self.pos = s[0]
+        else: 
+            self.pos = s[0]
         self.visited[self.pos] += 1
         
     def act(self):
-        if not self.game.FINISHED:
+        if not self.game.done:
             self.old_pos = self.pos
             x,y = self.pos
             
@@ -426,6 +428,8 @@ class Agent:
         # go through each move and back propogate rewards
         for i in range(len(self.move_list)):
             move = self.move_list[i]
+            a = random.uniform(.01, 10)
+            b = random.uniform(.01, 10)
             self.nn.train(move[1], move[2], ALPHA, BETA)
             #q-learn
         
