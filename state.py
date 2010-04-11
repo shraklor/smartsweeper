@@ -31,7 +31,7 @@ import numpy.random as nrand
 # State-action-reward thing
 ################################################################################
 class State:
-    def __init__(self, array, rewards = [.5,.5,.5,.5,.5,.5]):
+    def __init__(self, array, rewards = [.5,.5,.5,.5,.5,.5,.5]):
         self.actions = "LRJNESW"
         self.rewards = rewards
         self.getSym(array)
@@ -90,6 +90,17 @@ class State:
         self.moves = ["NESW", "WNES", "SWNE", "ESWN",
                       "NWSE", "WSEN", "SENW", "ENWS"]
 
+    def reward(self, action_string):
+        for action in action_string:
+            n = self.actions.index(action)
+            self.rewards[n] = (self.rewards[n] + 1) / 2.0
+            
+    def punish(self, action_string):
+        for action in action_string:
+            n = self.actions.index(action)
+            print action, n, self.actions
+            self.rewards[n] = self.rewards[n] / 2.0
+        
     def isMatch(self, array):
         # run through each symmetry
         for i in range(8):
@@ -102,19 +113,15 @@ class State:
         # otherwise, return no
         return False
 
-    def getAction(self):
-        size = float(sum(self.rewards))
-        for i in len(self.rewards):
-            self.rewards[key] /= size
-        rand = random.random()
-        action = "L"
-        left = 0.0
-        for a in self.actions:
-            if left <= rand < (self.rewards[a] + left):
-                action = a
-                break
-            left += self.rewards[a]
-        return action
+    def getActionIndex(self):
+        best = 0
+        action_i = 0
+        for i in range(len(self.rewards)):
+            r = 1.0 / (1 + math.exp(-self.rewards[i]))
+            if r > best:
+                best = r
+                action_i = i
+        return action_i
 
 ################################################################################
 # example

@@ -20,11 +20,26 @@
 #       Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #       MA 02110-1301, USA.
 
-OPEN_FIRST = False # false to lose on first click
-
-import random, pygame, os, math
+import math, os, sys, platform, pickle, random, pygame
+from pygame.locals import *
+from game import *
+from neural_network import *
+from agent import *
 from numpy import *
 import numpy.random as nrand
+
+OPEN_FIRST = True # false to be able to lose on first click
+LOAD_NN = True
+SAVE_NN = True
+LEARN = True
+DRAW = True
+RECORD = False # this is really resource intensive
+HUMAN = False
+CHUNK = 200
+OUTPUT_TEXT = "win_pct,sq_err,pct_cor,cleared,cor_digs,inc_digs,cor_flags,inc_flags\n"
+DIFF = 2
+AGENTS = 30
+
 class Game:
     def __init__(self, width, height, mines, draw = True, tile_size = 32):
         self.width = width
@@ -32,6 +47,7 @@ class Game:
         self.mines = mines
         self.wins = 0
         self.loses = 0
+        self.guess = {}
         
         self.draw_board = draw
         if self.draw_board:
@@ -48,6 +64,8 @@ class Game:
         self.reset()
 
     def reset(self):
+        self.goggles = 1
+        self.FINISHED = False
         self.did_change = True
         self.left_clicks = 0
         self.cleared = 0
@@ -57,9 +75,11 @@ class Game:
         self.incorrect_flags = 0
         self.towel_thrown = 0
         self.first_click = True
-
         self.done = False
         self.result = -1
+        for i in range(self.width):
+            for j in range(self.height):
+                self.guess[(i,j)] = .5
 
         self.mine_array = {}
         for h in range(self.height):
@@ -277,7 +297,9 @@ class Game:
         self.cleared = cleared
         if (cleared == ((self.width * self.height) - self.mines) and
             covered == self.mines):
+            self.FINISHED = True
             return True
+        self.FINISHED = False
         return False
 
 
@@ -285,7 +307,7 @@ class Game:
 # example
 ################################################################################
 
-def main():
+def randomGame():
     game = Game(4,4,3)
     while 1:
         game.reset()
@@ -301,6 +323,224 @@ def main():
         print w,"w",l,"l",(w*100.0)/(w+l),"%"
         try: input()
         except: pass
+
+def getErrors(game, agent):
+    sq_err = 0
+    correct = 0
+    for x in range(game.width):
+        for y in range(game.height):
+            err = abs(game.mine_array[(x,y)] - game.guess[(x,y)])
+            sq_err += err ** 2
+            if err < .5: correct += 1
+    sq_err /= float(game.width * game.height)
+    correct /= float(game.width * game.height)
+    return sq_err, correct
+    
+def main():
+    if DIFF == 0:
+        w = 8
+        h = 8
+        m = 10
+        t = 84
+    if DIFF == 1:
+        w = 16
+        h = 16
+        m = 40
+        t = 42
+    if DIFF == 2:
+        w = 30
+        h = 16
+        m = 99
+        t = 42
+    s = ""
+
+    # create your game board
+    os.environ['SDL_VIDEO_CENTERED'] = '1'
+    game = Game(w, h, m, draw = DRAW, tile_size = t)
+    count = 0
+    frame = 0
+    banner = "W:0 - L:0"
+    if DRAW:
+        pygame.display.set_caption(banner)
+        screen = pygame.display.set_mode((w * t, h * t))
+
+    # create your players
+    alist = []
+    for i in range(AGENTS):
+        alist.append(Agent(game))
+    #agent.cheat = True
+    if HUMAN:
+        for agent in alist:
+            agent.switch()
+
+    ####################################################################
+    # load your saved neural net from a file
+    ####################################################################
+    if LOAD_NN:
+        try:
+            f = open(os.path.join("data","nn.obj"), "r")
+            alist[0].nn = pickle.load(f)
+            for agent in alist:
+                agent.nn = alist[0].nn
+            print "Loading neural network."
+            f.close()
+        except:
+            #print sys.exc_info()
+            print "Couldn't load mind. Creating one."
+
+    ####################################################################
+    # create a log file
+    ####################################################################
+    csv = open(os.path.join("data", str(count) + ".csv"), "w")
+    csv.write(OUTPUT_TEXT)
+       
+    # get things started
+    game.running = True
+    while game.running:
+        for agent in alist:
+            agent.clearMoves()
+
+        ################################################################
+        # AN INDIVIDUAL GAME
+        ################################################################
+        while not game.done:
+            for agent in alist:
+                agent.act()
+            '''sq_err, correct = getErrors(game, agent)
+            clear = "clear"
+            if platform.system() == "Windows":
+                clear = "cls"
+            os.system(clear)
+            print(banner)
+            print("Squared Error", sq_err)
+            print("Percent Correct", correct)
+            game.printBoard()
+            '''
+            if game.draw_board:
+                game.clock.tick()#60) #to pace the bot
+                for event in pygame.event.get() :
+                    if event.type == QUIT:
+                        game.running = False
+                        pygame.quit ()
+                        
+                    # if the keyboard is used
+                    elif event.type == KEYDOWN:
+                        if event.key == K_ESCAPE:
+                            game.running = False
+                            pygame.quit ()
+                        if ((event.key == K_r and alist[0].human) or
+                            (event.key == K_h and not alist[0].human)):
+                            alist[0].switch()
+                        if event.key == K_c:
+                            alist[0].cheat = bool(1 - int(alist[0].cheat))
+                        if event.key == K_g:
+                            game.goggles = (game.goggles + 1) % 3
+
+                
+                if game.goggles == 0 or game.goggles == 1:
+                    screen.blit(game.surface, (0,0))
+
+                # DRAW AGENT'S GUESS
+                # purple = mine, yellow = not mine
+                # transparent = certain, opaque = not sure
+                if game.goggles == 1 or game.goggles == 2:
+                    temp = pygame.Surface((w,h))
+                    tran = pygame.Surface((t-1, t-1))
+                    for i in range(w):
+                        for j in range(h):
+                            g = 1 - game.guess[(i,j)]
+                            g *= 255
+                            tran.fill((160,g,255-g))
+                            g = int(min(g, 255-g) * 2)
+                            tran.set_alpha(int(g / 1.4))
+                            screen.blit(tran, (i * t + 1, j * t + 1))
+                
+                for agent in alist:
+                    x, y = agent.pos
+                    rx, ry = random.randint(-7,7), random.randint(-7,7)
+                    X, Y = x * t + t/2.0 + rx, y * t + t/2.0 + ry
+                    pygame.draw.circle(screen, (0,0,0), (int(X),int(Y)), 3)
+
+                ########################################################
+                # MAKE A MOVIE
+                ########################################################
+                if RECORD and game.did_change:
+                    print "recording"
+                    old_board = copy(game.board)
+                    pygame.image.save(screen, os.path.join("video", str(frame) + ".png"))
+                    frame += 1
+                pygame.display.flip()
+                game.did_change = False
+                
+        ################################################################
+        # compare agent's map of minefield to actual
+        ################################################################
+        sq_err, correct = getErrors(game, alist[0])
+
+        ################################################################
+        # print results to file
+        ################################################################
+        win, lose = game.wins, game.loses
+        try:
+            win_pct = (win*100.0)/(win+lose)
+        except: win_pct = 0
+
+        s = (str(win_pct) + "," +
+             str(sq_err) + "," +
+             str(correct) + "," +
+             str(game.cleared) + "," +
+             str(game.correct_digs) + "," +
+             str(game.incorrect_digs) + "," +
+             str(game.correct_flags) + "," +
+             str(game.incorrect_flags) + "\n")
+        csv.write(s)
+
+        banner = "W: " + str(win) + " - L: " + str(lose)
+        if DRAW: pygame.display.set_caption(banner)
+        print "W: ", win, " - L: ", lose
+        print s
+
+        ################################################################
+        # START NEW FILE AFTER chunk ITTERATIONS
+        ################################################################
+        count += 1
+        if count % CHUNK == 0:
+            csv.close()
+            csv = open(os.path.join("data", str(count) + ".csv"), "w")
+            csv.write(OUTPUT_TEXT)
+        elif not game.running:
+            csv.close()
+
+        ################################################################
+        # LEARN!!!
+        ################################################################
+        if LEARN:
+            nn = alist[0].nn
+            for agent in alist:
+                agent.nn = nn
+                agent.learn()
+                nn = agent.nn
+            for agent in alist:
+                agent.nn = nn
+                agent.memory = alist[0].memory
+        
+        ################################################################
+        # SAVE NN
+        ################################################################
+        if SAVE_NN:
+            try:
+                f = open(os.path.join("data","nn.obj"), "w")
+                pickle.dump(alist[0].nn, f)
+                print "Saving your neural network."
+                f.close()
+            except:
+                #pass
+                print "Couldn't save your neural network."
+
+        ################################################################
+        # RESET BOARD
+        ################################################################
+        game.reset()
 
 if __name__ == '__main__':
     main()
