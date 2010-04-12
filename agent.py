@@ -26,16 +26,16 @@ from game import *
 from state import *
 from neural_network import *
 
-ALPHA = .05
+ALPHA = .1
 BETA = .01
-MAX_MOVES = 42000
-MOVES_LEARNED = 4200
-THRESH = .14
-INITIAL = .7
+MAX_MOVES = 10000
+MOVES_LEARNED = 420
+THRESH = .012
+INITIAL = .022
 INPUT_GRID = 5
 OUTPUT_GRID = 3
-CHANGE = 1.0028
-WEIGHT = .03
+CHANGE = 1.007
+WEIGHT = .3
 
 ################################################################################
 # Intelligent Agent
@@ -53,7 +53,7 @@ class Agent:
             nodes[i] = 1
             self.name2num_dict[names[i]] = nodes
         a = (INPUT_GRID**2)*len(names)
-        b = OUTPUT_GRID**2        
+        b = OUTPUT_GRID**2
         self.nn = NeuralNet(a,int((3*a+2*b)/5),b)
         self.human = 0
         self.cheat = False
@@ -61,13 +61,15 @@ class Agent:
 
     def switch(self):
         self.human = 1 - self.human
-            
+
     def clearMoves(self):
         self.num_moves = 0
         self.closed = []
-        self.thresh = INITIAL# * random.uniform(.01, 7)
-        self.old_pos = (0,0)
-        self.pos = (0,0)
+        self.thresh = INITIAL# * random.uniform(.001, 10)
+        x = random.randint(0,self.game.width)
+        y = random.randint(0,self.game.height)
+        self.old_pos = (x,y)
+        self.pos = (x,y)
         self.old_action = "L"
         self.action = "L"
         self.move_list = []
@@ -76,7 +78,7 @@ class Agent:
         for i in range(self.game.width):
             for j in range(self.game.height):
                 #self.guess[(i,j)] = .5
-                self.visited[(i,j)] = 0        
+                self.visited[(i,j)] = 0
 
     def mouse2Grid(self, pos):
         x, y = pos
@@ -95,11 +97,11 @@ class Agent:
 
     def boardArea(self):
         area = []
-        for j in range(self.game.height):     
+        for j in range(self.game.height):
             for i in range(self.game.width):
                 area.append((i,j))
         return area
-   
+
     def threshClick(self):
         x,y = self.pos
         # get the guess for the space you're on
@@ -111,19 +113,19 @@ class Agent:
         if m == MAX_MOVES:
             print "max moves exceeded"
         if m < MAX_MOVES:
-            if out <= self.thresh * .65 and name != "f":
+            if out <= self.thresh and name != "f":
                 #print "dig"
                 self.close(self.pos)
                 cleared = self.game.dig(self.pos) # how many spaces we cleared
                 #self.visited[(x,y)] += 5
-                #if name not in "012345678":
-                self.thresh = THRESH
-            elif (out * .85 <= self.thresh and name == "f"):
+                if name not in "012345678":
+                    self.thresh = THRESH
+            elif (out <= self.thresh and name == "f"):
                 #print "unflag"
                 #self.open(self.pos)
                 self.game.mark(self.pos)
                 self.thresh = THRESH
-            elif (out >= (1 - self.thresh) * .85 and name != "f"):
+            elif (out >= (1 - self.thresh) and name != "f"):
                 #print "flag"
                 self.close(self.pos)
                 self.game.mark(self.pos)
@@ -144,12 +146,12 @@ class Agent:
     def simMove(self):
         ############################################################
         # MOVEMENT
-        ############################################################    
+        ############################################################
         x,y = self.pos
         # if you're on green, move to brown (most of the time)
         von_neumann = [(x,y+1),(x,y-1),(x+1,y),(x-1,y)]
         possible = []
-        if random.random() < .5:
+        if random.random() < 0.7:
             for pos in self.area:
                 if self.pos == pos:
                     continue
@@ -164,11 +166,11 @@ class Agent:
                     #    (pos in von_neumann)):
                     #    possible.append(pos)
                 except: pass
-               
+
         # if this isn't possible, anywhere is fine
         if len(possible) == 0:
             possible = self.area
-        
+
         # find the spot you've visited least
         m = 9999999999
         s = []
@@ -181,26 +183,26 @@ class Agent:
                     m = v
                     s = [pos]
                 elif v == m:
-                    s.append(pos)                    
+                    s.append(pos)
             except:
                 pass
         random.shuffle(s)
 
         # move to the best guess on the board
-        if random.random() < .3:
+        if random.random() < 0.7:
             random.shuffle(self.best_guesses)
             self.pos = self.best_guesses[0]
-            
+
         # and go to it
-        else: 
+        else:
             self.pos = s[0]
         self.visited[self.pos] += 1
-        
+
     def act(self):
         if not self.game.FINISHED:
             self.old_pos = self.pos
             x,y = self.pos
-            
+
             # figure out where your are and what's around you
             self.area = self.getArea(x,y,OUTPUT_GRID)
             self.area2 = self.getArea(x,y,INPUT_GRID)
@@ -224,10 +226,10 @@ class Agent:
                 try:
                     num = self.game.mine_array[pos]
                     target.append(num)
-                except: 
+                except:
                     target.append(.5)
 
-                        
+
             ################################################################
             # get output from neural net
             ################################################################
@@ -238,7 +240,7 @@ class Agent:
             if self.cheat:
                 print "cheating"
                 output = target
-             
+
             # update your guesses for whether or not a square has a mine
             for i in range(OUTPUT_GRID**2):
                 try:
@@ -275,7 +277,7 @@ class Agent:
 
             action_i = state.getActionIndex()
             action = state.actions[action_i]
-            
+
             ################################################################
             # EVENT LOOP - if you're drawing the board, check for events
             ################################################################
@@ -289,7 +291,7 @@ class Agent:
                             self.game.running = False
                             found = True
                             pygame.quit ()
-                            
+
                     if event.type == MOUSEMOTION:
                         self.old_pos = self.pos
                         self.pos = self.mouse2Grid(event.pos)
@@ -308,8 +310,8 @@ class Agent:
                             if y < a:
                                 state.reward("N")
                                 state.punish("S")
-                            found = True                            
-                
+                            found = True
+
                     if event.type == QUIT:
                         self.game.running = False
                         found = True
@@ -337,10 +339,10 @@ class Agent:
                 self.simMove()
                 '''
                 x, y = self.pos
-                
-                if action == "L": 
-                    self.game.dig(self.pos)                
-                elif action == "R": 
+
+                if action == "L":
+                    self.game.dig(self.pos)
+                elif action == "R":
                     self.game.mark(self.pos)
                 elif action == "N":
                     y -= 1
@@ -368,7 +370,14 @@ class Agent:
                 r = random.randint(0, len(self.move_list))
                 self.move_list = self.move_list[:r] + self.move_list[r+1:]
             self.num_moves += 1
-
+            if self.num_moves == MOVES_LEARNED:
+                print "truncating move list"
+            if self.num_moves == MAX_MOVES / 10:
+                print "10%"
+            if self.num_moves == MAX_MOVES / 4:
+                print "1/4"
+            if self.num_moves == MAX_MOVES / 2:
+                print "half way"
 
     def getCertainty(self):
         ############################################################
@@ -411,7 +420,7 @@ class Agent:
             input = self.move_list[move][1]
             n = max(max(input), 0)
             target = self.move_list[move][2]
-            
+
             for i in range(n):
                 self.nn.train(input, target, reward)
 
@@ -422,20 +431,23 @@ class Agent:
     def open(self, pos):
         if pos in self.closed:
             self.closed.remove(pos)
-            
+
     def close(self, pos):
         if pos not in self.closed:
             self.closed.append(pos)
-            
+
     def learn(self):
+        for i in range(15):
+            move = self.move_list[-1]
+            self.nn.train(move[1], move[2], ALPHA * 3, BETA * 3)
         # go through each move and back propogate rewards
         for i in range(len(self.move_list)):
             move = self.move_list[i]
-            a = random.uniform(.001, 2)
-            b = random.uniform(.0001, 1)
+            a = 1#random.uniform(.001, 2)
+            b = 1#random.uniform(.0001, 1)
             self.nn.train(move[1], move[2], ALPHA * a, BETA * b)
             #q-learn
-        
+
     def reward(self, i, amt):
         self.state.rewards[i] += amt
 

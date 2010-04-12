@@ -28,7 +28,7 @@ from agent import *
 from numpy import *
 import numpy.random as nrand
 
-OPEN_FIRST = False # false to be able to lose on first click
+OPEN_FIRST = False# false to be able to lose on first click
 LOAD_NN = False
 SAVE_NN = True
 LEARN = True
@@ -36,11 +36,11 @@ DRAW = True
 RECORD = False # this is really resource intensive
 HUMAN = False
 CHUNK = 200
-SAVE_INT = 10
+SAVE_INT = 1
 OUTPUT_TEXT = "win_pct,sq_err,pct_cor,cleared,cor_digs,inc_digs,cor_flags,inc_flags\n"
-DIFF = 0
-DIFF_MINDS = True
-AGENTS = 5
+DIFF = 2
+DIFF_MINDS = False
+AGENTS = 69
 
 class Game:
     def __init__(self, width, height, mines, draw = True, tile_size = 32):
@@ -50,7 +50,7 @@ class Game:
         self.wins = 0
         self.loses = 0
         self.guess = {}
-        
+
         self.draw_board = draw
         if self.draw_board:
             pygame.init()
@@ -107,7 +107,7 @@ class Game:
 
     def throwTowel(self):
         self.towel_thrown = 1
-        
+
     def loadImg(self, name):
         return pygame.image.load(os.path.join("images", name + ".png"))
 
@@ -169,9 +169,9 @@ class Game:
         cleared = 0
         x = pos[0]
         y = pos[1]
-            
+
         # if the space has a mine and it's not your first move
-        if (self.mine_array[pos] == 1 and 
+        if (self.mine_array[pos] == 1 and
             (not self.first_click or not OPEN_FIRST)):
 
             # go through every space on the board
@@ -220,7 +220,7 @@ class Game:
                     self.mine_array[s] = 0
                 except:
                     pass
-                    
+
             rh = random.randint(0, self.height - 1)
             rw = random.randint(0, self.width - 1)
             for h in range(self.height):
@@ -281,8 +281,8 @@ class Game:
                                 cleared += self.clear(s, True)
                         except:
                             pass # invalid position
-                
-           
+
+
         return cleared
 
     def isWon(self):
@@ -317,7 +317,7 @@ class Game:
         sq_err /= float(self.width * self.height)
         correct /= float(self.width * self.height)
         return sq_err, correct
-        
+
 
 ################################################################################
 # example
@@ -407,7 +407,7 @@ def main():
     ####################################################################
     csv = open(os.path.join("data", str(count) + ".csv"), "w")
     csv.write(OUTPUT_TEXT)
-       
+
     # get things started
     game.running = True
     while game.running:
@@ -436,7 +436,7 @@ def main():
                     if event.type == QUIT:
                         game.running = False
                         pygame.quit ()
-                        
+
                     # if the keyboard is used
                     elif event.type == KEYDOWN:
                         if event.key == K_ESCAPE:
@@ -450,7 +450,7 @@ def main():
                         if event.key == K_g:
                             game.goggles = (game.goggles + 1) % 3
 
-                
+
                 if game.goggles == 0 or game.goggles == 1:
                     screen.blit(game.surface, (0,0))
 
@@ -468,7 +468,7 @@ def main():
                             g = int(min(g, 255-g) * 2)
                             tran.set_alpha(int(g / 1.4))
                             screen.blit(tran, (i * t + 1, j * t + 1))
-                
+
                 ########################################################
                 # DRAW EACH AGENT
                 ########################################################
@@ -488,7 +488,7 @@ def main():
                     frame += 1
                 pygame.display.flip()
                 game.did_change = False
-                
+
         ################################################################
         # compare agent's map of minefield to actual
         ################################################################
@@ -544,7 +544,7 @@ def main():
                 for agent in alist:
                     agent.nn = nn
                     agent.memory = alist[0].memory
-        
+
         ################################################################
         # SAVE NN
         ################################################################

@@ -63,13 +63,13 @@ class NeuralNet:
 
         # get output of our neural network
         out = mat(self.getOut(i))
-        
+
         # calc deltas
         d_o = mat(asarray(out) * asarray(oneMinus(out)) *
                   asarray(sub(mat(t), out)))
         d_h = mat(asarray(self.h) * asarray(oneMinus(self.h)) *
                   asarray(d_o * self.w_ho.T))
-        
+
         # update weights
         c_ih = mat(i).T * d_h
         self.w_ih = add(add(self.w_ih, a * c_ih), b * self.m_ih)
