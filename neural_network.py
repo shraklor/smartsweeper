@@ -50,8 +50,8 @@ sub = vectorize(sub, otypes=[float])
 ################################################################################
 class NeuralNet:
     def __init__(self, i, h, o):
-        self.w_ih = mat(nrand.uniform(-1,1,(i,h)))
-        self.w_ho = mat(nrand.uniform(-1,1,(h,o)))
+        self.w_ih = mat(nrand.uniform(-.05, .05,(i,h)))
+        self.w_ho = mat(nrand.uniform(-.05, .05,(h,o)))
         self.m_ih = mat(zeros((i,h)))
         self.m_ho = mat(zeros((h,o)))
 

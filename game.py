@@ -20,35 +20,50 @@
 #       Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #       MA 02110-1301, USA.
 
-import math, os, sys, platform, pickle, random, pygame
-from pygame.locals import *
-from game import *
-from neural_network import *
-from agent import *
-from numpy import *
-import numpy.random as nrand
-
-OPEN_FIRST = False# false to be able to lose on first click
-LOAD_NN = False
+TORUS = False
+OPEN_FIRST = True# false to be able to lose on first click
+LOAD_NN = True
 SAVE_NN = True
+SAVE_CSV = False
+ASCII_OUTPUT = False
 LEARN = True
 DRAW = True
 RECORD = False # this is really resource intensive
 HUMAN = False
-CHUNK = 200
+CHUNK = 500
+SAVE_CHUNK = 1
 SAVE_INT = 1
 OUTPUT_TEXT = "win_pct,sq_err,pct_cor,cleared,cor_digs,inc_digs,cor_flags,inc_flags\n"
-DIFF = 2
+DIFF = 0
 DIFF_MINDS = False
-AGENTS = 69
+AGENTS = 1
+
+import math, os, sys, platform, pickle, random
+if DRAW:
+    import pygame
+    from pygame.locals import *
+from neural_network import *
+from agent import *
+try:
+    from numpy import *
+    import numpy.random as nrand
+except:
+    print "You need numpy! Ahh!"
+    exit(-1)
+    
+    
+########################################################################
+# MINESWEEPER
+########################################################################
 
 class Game:
-    def __init__(self, width, height, mines, draw = True, tile_size = 32):
+    def __init__(self, width, height, mines, draw = True, tile_size = 32, torus = False):
         self.width = width
         self.height = height
         self.mines = mines
         self.wins = 0
         self.loses = 0
+        self.torus = torus
         self.guess = {}
 
         self.draw_board = draw
@@ -149,7 +164,7 @@ class Game:
 
     def dig(self, pos):
         cleared = 0
-        if not self.done:
+        if not self.done and self.board[pos] != "f":
             self.left_clicks += 1
             "surely dig and clear can be merged"
             "things get funky with recursion"
@@ -210,9 +225,16 @@ class Game:
         # if it's your first click
         if self.first_click and OPEN_FIRST:
             self.first_click = False
-            area = [(x-1, y-1), (x, y-1), (x+1, y-1),
-                    (x-1, y),   (x, y),   (x+1, y),
-                    (x-1, y+1), (x, y+1), (x+1, y+1)]
+            if self.torus:
+                w = self.width
+                h = self.height
+                area = [((x-1)%w, (y-1)%h), (x, (y-1)%h), ((x+1)%w, (y-1)%h),
+                        ((x-1)%w, y)      , (x, y)      , ((x+1)%w, y)      ,
+                        ((x-1)%w, (y+1)%h), (x, (y+1)%h), ((x+1)%w, (y+1)%h)]
+            else:
+                area = [(x-1, y-1), (x, y-1), (x+1, y-1),
+                        (x-1, y),   (x, y),   (x+1, y),
+                        (x-1, y+1), (x, y+1), (x+1, y+1)]
             count = 0
             for s in area:
                 try:
@@ -238,10 +260,17 @@ class Game:
         if self.mine_array[pos] == 0:
 
             # get your neighbors
-            area = [(x-1, y-1), (x, y-1), (x+1, y-1),
-                    (x-1, y),             (x+1, y),
-                    (x-1, y+1), (x, y+1), (x+1, y+1)]
-
+            if self.torus:
+                w = self.width
+                h = self.height
+                area = [((x-1)%w, (y-1)%h), (x, (y-1)%h), ((x+1)%w, (y-1)%h),
+                        ((x-1)%w, y)      , (x, y)      , ((x+1)%w, y)      ,
+                        ((x-1)%w, (y+1)%h), (x, (y+1)%h), ((x+1)%w, (y+1)%h)]
+            else:
+                area = [(x-1, y-1), (x, y-1), (x+1, y-1),
+                        (x-1, y),   (x, y),   (x+1, y),
+                        (x-1, y+1), (x, y+1), (x+1, y+1)]
+                        
             # if the space is unknown
             if self.board[pos] == "_":
                 cleared += 1
@@ -342,25 +371,33 @@ def randomGame():
 
 def main():
     if DIFF == 0:
+        #print "SMALL - 8x8 w/ 10 mines"
         w = 8
         h = 8
         m = 10
-        t = 84
+        t = 32
     if DIFF == 1:
+        #print "MEDIUM - 16x16 w/ 40 mines"
         w = 16
         h = 16
         m = 40
-        t = 42
+        t = 32
     if DIFF == 2:
-        w = 30
+        #print "LARGE - 32x16 w/ 99 mines"
+        w = 32
         h = 16
         m = 99
-        t = 42
+        t = 26
+    if DIFF == 3:
+        w = 8
+        h = 8
+        m = 15
+        t = 32
     s = ""
 
     # create your game board
-    os.environ['SDL_VIDEO_CENTERED'] = '1'
-    game = Game(w, h, m, draw = DRAW, tile_size = t)
+    if DRAW: os.environ['SDL_VIDEO_CENTERED'] = '1'
+    game = Game(w, h, m, draw = DRAW, tile_size = t, torus = TORUS)
     count = 0
     frame = 0
     banner = "W:0 - L:0"
@@ -385,11 +422,19 @@ def main():
                 try:
                     f = open(os.path.join("data","nn" + str(i) + ".obj"), "r")
                     alist[i].nn = pickle.load(f)
-                    print "Loading neural network."
+                    print "Loading Agent " + str(i) + "'s neural network."
                     f.close()
                 except:
-                    #print sys.exc_info()
-                    print "Couldn't load mind. Creating one."
+                    try:
+                        f = open(os.path.join("data","nn.obj"), "r")
+                        alist[i].nn = pickle.load(f)
+                        for agent in alist:
+                            agent.nn = alist[i].nn
+                        print "Loading stock neural network."
+                        f.close()
+                    except:
+                        #print sys.exc_info()
+                        print "Couldn't load mind. Creating one."
         else:
             try:
                 f = open(os.path.join("data","nn.obj"), "r")
@@ -405,8 +450,9 @@ def main():
     ####################################################################
     # create a log file
     ####################################################################
-    csv = open(os.path.join("data", str(count) + ".csv"), "w")
-    csv.write(OUTPUT_TEXT)
+    if SAVE_CSV:
+        csv = open(os.path.join("data", str(count) + ".csv"), "w")
+        csv.write(OUTPUT_TEXT)
 
     # get things started
     game.running = True
@@ -420,16 +466,17 @@ def main():
         while not game.done:
             for agent in alist:
                 agent.act()
-            '''sq_err, correct = getErrors(game, agent)
-            clear = "clear"
-            if platform.system() == "Windows":
-                clear = "cls"
-            os.system(clear)
-            print(banner)
-            print("Squared Error", sq_err)
-            print("Percent Correct", correct)
-            game.printBoard()
-            '''
+            if ASCII_OUTPUT:
+                sq_err, correct = game.getErrors()
+                clear = "clear"
+                if platform.system() == "Windows":
+                    clear = "cls"
+                os.system(clear)
+                print(banner)
+                print("Squared Error", sq_err)
+                print("Percent Correct", correct)
+                game.printBoard()
+            
             if game.draw_board:
                 game.clock.tick()#60) #to pace the bot
                 for event in pygame.event.get() :
@@ -510,22 +557,22 @@ def main():
              str(game.incorrect_digs) + "," +
              str(game.correct_flags) + "," +
              str(game.incorrect_flags) + "\n")
-        csv.write(s)
+        if SAVE_CSV: csv.write(s)
 
         banner = "W: " + str(win) + " - L: " + str(lose)
         if DRAW: pygame.display.set_caption(banner)
-        print "W: ", win, " - L: ", lose
+        #print "W: ", win, " - L: ", lose
         print s
 
         ################################################################
         # START NEW FILE AFTER chunk ITTERATIONS
         ################################################################
         count += 1
-        if count % CHUNK == 0:
+        if SAVE_CSV and count % CHUNK == 0:
             csv.close()
             csv = open(os.path.join("data", str(count) + ".csv"), "w")
             csv.write(OUTPUT_TEXT)
-        elif not game.running:
+        elif SAVE_CSV and not game.running:
             csv.close()
 
         ################################################################
@@ -551,14 +598,15 @@ def main():
         if SAVE_NN and count % SAVE_INT == 0:
             if DIFF_MINDS:
                 for i in range(len(alist)):
-                    try:
-                        f = open(os.path.join("data","nn" + str(i) + ".obj"), "w")
-                        pickle.dump(alist[i].nn, f)
-                        print "Saving your neural network."
-                        f.close()
-                    except:
-                        #pass
-                        print "Couldn't save your neural network."
+                    if i % SAVE_CHUNK == count % SAVE_CHUNK:
+                        try:
+                            f = open(os.path.join("data","nn" + str(i) + ".obj"), "w")
+                            pickle.dump(alist[i].nn, f)
+                            print "Saving neural network number " + str(i) + "."
+                            f.close()
+                        except:
+                            #pass
+                            print "Couldn't save your neural network."
             else:
                 try:
                     f = open(os.path.join("data","nn.obj"), "w")

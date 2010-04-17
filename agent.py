@@ -28,14 +28,26 @@ from neural_network import *
 
 ALPHA = .1
 BETA = .01
-MAX_MOVES = 10000
-MOVES_LEARNED = 420
-THRESH = .012
-INITIAL = .022
+OPEN_MIND = 1
+HUG_EDGE = .999
+GREED = 0.001
+NUM_POS = 5
+MAX_MOVES = 42000
+MOVES_LEARNED = 5000
+SPEED_MOVES = 8000
+SPEED_AMT = 1.00191 # increased threshold change
+CHANGE = 1.000173 # normal threshold change
+THRESH = .071
+INITIAL = 1
+TO_DIG = .6
+TO_FLAG = 1
+TO_UNFLAG = .7
 INPUT_GRID = 5
 OUTPUT_GRID = 3
-CHANGE = 1.007
-WEIGHT = .3
+WEIGHT = .014
+SHARE_MAP = True
+RESET_MOVES = False
+CHEAT = False
 
 ################################################################################
 # Intelligent Agent
@@ -44,9 +56,10 @@ WEIGHT = .3
 class Agent:
     def __init__(self, game):
         self.game = game
+        self.human = 0
         self.clearMoves()
         self.name2num_dict = {}
-        names = "_012345678f"
+        names = "f_012345678"
         self.in_size = len(names)
         for i in range(len(names)):
             nodes = [0] * len(names)
@@ -54,31 +67,49 @@ class Agent:
             self.name2num_dict[names[i]] = nodes
         a = (INPUT_GRID**2)*len(names)
         b = OUTPUT_GRID**2
-        self.nn = NeuralNet(a,int((3*a+2*b)/5),b)
-        self.human = 0
-        self.cheat = False
+        self.nn = NeuralNet(a,a,b)
+        self.cheat = CHEAT
         self.memory = []
-
+        self.alpha = ALPHA
+        self.beta = BETA
+        self.move_list = []
     def switch(self):
         self.human = 1 - self.human
-
+            
     def clearMoves(self):
         self.num_moves = 0
         self.closed = []
-        self.thresh = INITIAL# * random.uniform(.001, 10)
-        x = random.randint(0,self.game.width)
-        y = random.randint(0,self.game.height)
-        self.old_pos = (x,y)
-        self.pos = (x,y)
+        self.thresh = INITIAL# * random.random()
+        if self.human and self.game.draw_board:
+            x, y = pygame.mouse.get_pos()
+            if self.game.torus:
+                x %= self.game.width
+                y %= self.game.height
+            else:
+                if x >= self.game.width: x = self.game.width - 1 
+                elif x < 0: x = 0
+                if y >= self.game.height: y = self.game.height - 1 
+                elif y < 0: y = 0
+            s = (x, y)
+            
+        else: 
+            #s = (random.randint(0, self.game.width),
+            #     random.randint(0, self.game.height))
+            s = (0,0)
+        self.old_pos = s
+        self.pos = s
         self.old_action = "L"
         self.action = "L"
-        self.move_list = []
-        #self.guess = {}
+        if RESET_MOVES:
+            self.move_list = []
+        if not SHARE_MAP: self.guess = {}
         self.visited = {}
+        self.certainty = {}
         for i in range(self.game.width):
             for j in range(self.game.height):
-                #self.guess[(i,j)] = .5
+                if not SHARE_MAP: self.guess[(i,j)] = .5
                 self.visited[(i,j)] = 0
+                self.certainty[(i,j)] = .5
 
     def mouse2Grid(self, pos):
         x, y = pos
@@ -92,6 +123,9 @@ class Agent:
             b = y + j - int(n / 2)
             for i in range(n):
                 a = x + i - int(n / 2)
+                if self.game.torus:
+                    a %= self.game.width
+                    b %= self.game.height
                 area.append((a, b))
         return area
 
@@ -105,32 +139,44 @@ class Agent:
     def threshClick(self):
         x,y = self.pos
         # get the guess for the space you're on
-        out = self.game.guess[self.pos]
-
+        if SHARE_MAP:
+            out = self.game.guess[self.pos]
+        else: out = self.guess[self.pos]
+        
+        
+        
         name = self.game.board[self.pos]
-        self.thresh *= CHANGE
         m = self.num_moves
+        speed = 1
+        if m == SPEED_MOVES:
+            print "speeding up"
+        if m > SPEED_MOVES:
+            speed = SPEED_AMT
+        self.thresh *= CHANGE * speed
         if m == MAX_MOVES:
-            print "max moves exceeded"
+            print "giving up"
         if m < MAX_MOVES:
-            if out <= self.thresh and name != "f":
+            if out <= self.thresh * TO_DIG and name != "f":
                 #print "dig"
                 self.close(self.pos)
                 cleared = self.game.dig(self.pos) # how many spaces we cleared
                 #self.visited[(x,y)] += 5
-                if name not in "012345678":
-                    self.thresh = THRESH
-            elif (out <= self.thresh and name == "f"):
+                #if name not in "012345678" and m > SPEED_MOVES:
+                if cleared != 0:
+                    self.thresh = THRESH * speed
+            elif (out * TO_UNFLAG <= self.thresh and name == "f"):
                 #print "unflag"
-                #self.open(self.pos)
+                self.open(self.pos)
                 self.game.mark(self.pos)
-                self.thresh = THRESH
-            elif (out >= (1 - self.thresh) and name != "f"):
+                self.thresh = THRESH * speed
+                #self.wholeBoard()
+            elif (out * TO_FLAG >= (1 - self.thresh) and name != "f"):
                 #print "flag"
                 self.close(self.pos)
                 self.game.mark(self.pos)
                 #self.visited[self.pos] += 5
-                self.thresh = THRESH
+                self.thresh = THRESH * speed
+                #self.wholeBoard()
 
         # if you've gone so many moves without ending the game, do it
         elif name == "f":
@@ -139,9 +185,9 @@ class Agent:
         else:
             self.game.dig(self.pos)
             self.game.throwTowel()
-
+        
         if name == "0":
-            self.visited[(x,y)] += 10
+            pass#self.visited[(x,y)] += 10
 
     def simMove(self):
         ############################################################
@@ -149,10 +195,11 @@ class Agent:
         ############################################################
         x,y = self.pos
         # if you're on green, move to brown (most of the time)
+        area = self.getArea(x,y,3)
         von_neumann = [(x,y+1),(x,y-1),(x+1,y),(x-1,y)]
         possible = []
-        if random.random() < 0.7:
-            for pos in self.area:
+        if random.random() < HUG_EDGE:
+            for pos in area:
                 if self.pos == pos:
                     continue
                 try:
@@ -169,7 +216,7 @@ class Agent:
 
         # if this isn't possible, anywhere is fine
         if len(possible) == 0:
-            possible = self.area
+            possible = area
 
         # find the spot you've visited least
         m = 9999999999
@@ -189,69 +236,108 @@ class Agent:
         random.shuffle(s)
 
         # move to the best guess on the board
-        if random.random() < 0.7:
+        if random.random() < GREED:
             random.shuffle(self.best_guesses)
             self.pos = self.best_guesses[0]
-
+        
         # and go to it
         else:
             self.pos = s[0]
-        self.visited[self.pos] += 1
+        #self.visited[self.pos] += 1
+
+    def scanMove(self):
+        x, y = self.pos
+        x = (x + 1) % self.game.width
+        if x == 0:
+            y = (y + 1) % self.game.height
+        self.pos = (x, y)
+        
+    def wholeBoard(self):
+        p = []
+        for i in range(self.game.width):
+            for j in range(self.game.height):
+                p.append((i,j))
+        random.shuffle(p)
+        for s in p:
+            self.getNNOutOf(s)
+            
+    def getNNOutOf(self, p):
+        x,y = p
+        
+        # figure out where your are and what's around you
+        self.area = self.getArea(x,y,OUTPUT_GRID)
+        self.area2 = self.getArea(x,y,INPUT_GRID)
+
+        # GET INPUT FROM AREA AROUND YOU
+        input = []
+        max_in = 0
+        for pos in self.area2:
+            try:
+                name = self.game.board[pos]
+                try:
+                    if int(name) > max_in:
+                        max_in = int(name)
+                except:
+                    pass
+                nodes = self.name2num_dict[name]
+                input += nodes
+            except:
+                input += [0] * self.in_size
+        self.input = input
+        self.max_in = max_in
+        
+        # FIGURE OUT WHAT YOUR TARGET OUTPUT SHOULD BE
+        # this is not used to determine where to go or what to do
+        # it is only used durring the learning phase
+        target = []
+        for i in range(len(self.area)):
+            pos = self.area[i]
+            try:
+                num = self.game.mine_array[pos]
+                target.append(num)
+            except:
+                target.append(.5)
+        self.target = target
+
+        ################################################################
+        # get output from neural net
+        ################################################################
+        output = self.nn.getOut(input)
+        self.output = output
+        # uncomment this to play perfectly (cheat)
+        # for learning examples quicker
+        if self.cheat:
+            print "cheating"
+            output = target
+            
+        
+        certainty = sum(output)/float(len(output))
+        certainty = max(certainty, 1-certainty)
+        self.certainty[self.pos] = certainty
+        
+        weight = WEIGHT
+        # update your guesses for whether or not a square has a mine
+        for i in range(OUTPUT_GRID**2):
+            try:
+                if SHARE_MAP:
+                    output[i] = self.game.guess[self.area[i]] * (1-weight) + output[i] * weight
+                    self.game.guess[self.area[i]] = output[i]
+                else:
+                    output[i] = self.guess[self.area[i]] * (1-weight) + output[i] * weight
+                    self.guess[self.area[i]] = output[i]
+            except:
+                pass # this just means we're looking out of bounds
 
     def act(self):
         if not self.game.FINISHED:
             self.old_pos = self.pos
             x,y = self.pos
-
-            # figure out where your are and what's around you
-            self.area = self.getArea(x,y,OUTPUT_GRID)
-            self.area2 = self.getArea(x,y,INPUT_GRID)
-
-            # GET INPUT FROM AREA AROUND YOU
-            input = []
-            for pos in self.area2:
-                try:
-                    name = self.game.board[pos]
-                    nodes = self.name2num_dict[name]
-                    input += nodes
-                except:
-                    input += [0] * self.in_size
-
-            # FIGURE OUT WHAT YOUR TARGET OUTPUT SHOULD BE
-            # this is not used to determine where to go or what to do
-            # it is only used durring the learning phase
-            target = []
-            for i in range(len(self.area)):
-                pos = self.area[i]
-                try:
-                    num = self.game.mine_array[pos]
-                    target.append(num)
-                except:
-                    target.append(.5)
-
-
-            ################################################################
-            # get output from neural net
-            ################################################################
-            output = self.nn.getOut(input)
-
-            # uncomment this to play perfectly (cheat)
-            # for learning examples quicker
-            if self.cheat:
-                print "cheating"
-                output = target
-
-            # update your guesses for whether or not a square has a mine
-            for i in range(OUTPUT_GRID**2):
-                try:
-                    output[i] = self.game.guess[self.area[i]] * (1-WEIGHT) + output[i] * WEIGHT
-                    self.game.guess[self.area[i]] = output[i]
-                except:
-                    pass # this just means we're looking out of bounds
-
+            self.getNNOutOf(self.pos)
             ################################################################
             # Q STUFF
             ################################################################
+            '''
+            output = self.output
             out_array = []
             count = 0
             for a in range(OUTPUT_GRID):
@@ -265,75 +351,125 @@ class Agent:
                         count += 1
                     except:
                         out_array[a].append(0)
-            found = False
+            ahha = False
             for s in self.memory:
-                found = s.isMatch(out_array)
-                if found:
+                ahha = s.isMatch(out_array)
+                if ahha:
                     state = s
                     break
-            if not found:
+            if not ahha:
                 state = State(out_array)
                 self.memory.append(state)
 
             action_i = state.getActionIndex()
             action = state.actions[action_i]
-
+            '''
+            
             ################################################################
             # EVENT LOOP - if you're drawing the board, check for events
             ################################################################
             if self.human:
+                
                 found = False
-                while not found:
-                    event = pygame.event.wait()
-                    # if the keyboard is used
-                    if event.type == KEYDOWN:
-                        if event.key == K_ESCAPE:
+                if self.game.draw_board:
+                    for i in range(5000):
+                        event = pygame.event.poll()
+                        
+                        if event.type == QUIT:
                             self.game.running = False
-                            found = True
                             pygame.quit ()
+                            break
 
-                    if event.type == MOUSEMOTION:
-                        self.old_pos = self.pos
-                        self.pos = self.mouse2Grid(event.pos)
-                        x, y = self.pos
-                        a, b = self.old_pos
-                        if self.old_pos != self.pos:
-                            if x > a:
-                                state.reward("E")
-                                state.punish("W")
-                            if x < a:
-                                state.reward("W")
-                                state.punish("E")
-                            if y > a:
-                                state.reward("S")
-                                state.punish("N")
-                            if y < a:
-                                state.reward("N")
-                                state.punish("S")
-                            found = True
+                        elif event.type == KEYDOWN:
+                            if event.key == K_r:
+                                self.switch()
+                                break
+                            if event.key == K_ESCAPE:
+                                self.game.running = False
+                                pygame.quit ()
+                                break
+                            if event.key == K_c:
+                                self.cheat = bool(1 - int(self.cheat))
+                                break
+                            if event.key == K_g:
+                                self.game.goggles = (self.game.goggles + 1) % 3
+                                break
 
-                    if event.type == QUIT:
-                        self.game.running = False
-                        found = True
-                        pygame.quit ()
 
-                    # if something is clicked
-                    elif event.type == MOUSEBUTTONDOWN:
-                        if event.button == 1:
-                            cleared = self.game.dig(self.pos)
-                            found = True
-                            state.reward("L")
-                            state.punish("R")
-                        if event.button == 3:
-                            self.game.mark(self.pos)
-                            found = True
-                            state.reward("R")
-                            state.punish("L")
+                        # if something is clicked
+                        elif event.type == MOUSEBUTTONDOWN:
+                            if event.button == 1:
+                                cleared = self.game.dig(self.pos)
+                                found = True
+                                '''
+                                state.reward("L")
+                                state.punish("R")
+                                '''
+                            if event.button == 3:
+                                self.game.mark(self.pos)
+                                found = True
+                                '''
+                                state.reward("R")
+                                state.punish("L")
+                                '''
+                                
+                        elif event.type == MOUSEMOTION:
+                            self.old_pos = self.pos
+                            self.pos = self.mouse2Grid(event.pos)
+                            x, y = self.pos
+                            a, b = self.old_pos
+                            if self.old_pos != self.pos:
+                                '''
+                                if x > a:
+                                    state.reward("E")
+                                    state.punish("W")
+                                if x < a:
+                                    state.reward("W")
+                                    state.punish("E")
+                                if y > a:
+                                    state.reward("S")
+                                    state.punish("N")
+                                if y < a:
+                                    state.reward("N")
+                                    state.punish("S")
+                                '''
+                                found = True
+                        
+                        else:
+                            self.pos = self.mouse2Grid(pygame.mouse.get_pos())
+
+
 
             ################################################################
             # BOT SPECIFIC STUFF
             ################################################################
-            if not self.human:
+            elif not self.human:
+                found = False
+                if self.game.draw_board:
+                    for i in range(10):
+                        event = pygame.event.poll()
+                        if event.type == KEYDOWN:
+                            if event.key == K_h:
+                                self.switch()
+                            if event.key == K_c:
+                                self.cheat = bool(1 - int(self.cheat))
+                                break
+                            if event.key == K_g:
+                                self.game.goggles = (self.game.goggles + 1) % 3
+                                break    
+                            if event.key == K_ESCAPE:
+                                self.game.running = False
+                                pygame.quit ()
+                                break
+                                
+                        if event.type == QUIT:
+                            self.game.running = False
+                            pygame.quit ()
+                            break
+                            
+
+                        found = True
+                #self.wholeBoard()
                 self.threshClick()
                 self.getCertainty()
                 self.simMove()
@@ -365,20 +501,27 @@ class Agent:
             ################################################################
             # Remember what you've done.
             ################################################################
-            self.move_list.append([self.pos, input, target])#, state, action_i])
-            if self.num_moves > MOVES_LEARNED:
-                r = random.randint(0, len(self.move_list))
-                self.move_list = self.move_list[:r] + self.move_list[r+1:]
-            self.num_moves += 1
-            if self.num_moves == MOVES_LEARNED:
+            if found:
+                m = [self.input, self.target, self.max_in]
+                if m not in self.move_list:
+                    self.move_list.append(m)#, state, action_i])
+                    #print len(self.move_list)
+                if len(self.move_list) > MOVES_LEARNED:
+                    #r = random.randint(0, len(self.move_list))
+                    #self.move_list = self.move_list[:r] + self.move_list[r+1:]
+                    self.move_list = self.move_list[1:]
+                self.num_moves += 1
+                
+            
+            '''if self.num_moves == MOVES_LEARNED:
                 print "truncating move list"
-            if self.num_moves == MAX_MOVES / 10:
-                print "10%"
+            if self.num_moves == MAX_MOVES / 20:
+                print "5%"
             if self.num_moves == MAX_MOVES / 4:
                 print "1/4"
             if self.num_moves == MAX_MOVES / 2:
-                print "half way"
-
+                print "half way"'''
+                
     def getCertainty(self):
         ############################################################
         # how certain are you that you've chosen correctly
@@ -391,17 +534,20 @@ class Agent:
         local_certainty = 0
         for i in range(self.game.width):
             for j in range(self.game.height):
-                g = self.game.guess[(i,j)]
+                if SHARE_MAP:
+                    g = self.game.guess[(i,j)]
+                else:
+                    g = self.guess[(i,j)]
                 err = min(g, 1-g) ** 2
                 global_certainty += 1 - err
                 if (i,j) in self.area:
                     local_certainty += 1 - err
-                if (i,j) in self.closed:
+                if (i,j) in self.closed and random.random() < .9:
                     continue
                 if err < max(lowest_errors):
                     lowest_errors.append(err)
                     self.best_guesses.append((i,j))
-                    if len(self.best_guesses) > 10:
+                    if len(self.best_guesses) > NUM_POS:
                         self.best_guesses = self.best_guesses[1:]
                         lowest_errors = lowest_errors[1:]
                     if err < lowest:
@@ -437,17 +583,16 @@ class Agent:
             self.closed.append(pos)
 
     def learn(self):
-        for i in range(15):
-            move = self.move_list[-1]
-            self.nn.train(move[1], move[2], ALPHA * 3, BETA * 3)
         # go through each move and back propogate rewards
-        for i in range(len(self.move_list)):
-            move = self.move_list[i]
-            a = 1#random.uniform(.001, 2)
-            b = 1#random.uniform(.0001, 1)
-            self.nn.train(move[1], move[2], ALPHA * a, BETA * b)
-            #q-learn
-
+        index = 0
+        while index < len(self.move_list):
+            move = self.move_list[index % len(self.move_list)]
+            self.nn.train(move[0], move[1],self.alpha, self.beta)
+            index += 1
+        self.alpha *= OPEN_MIND
+        self.beta *= OPEN_MIND
+        #print self.alpha, self.beta
+        
     def reward(self, i, amt):
         self.state.rewards[i] += amt
 
@@ -459,7 +604,11 @@ class Agent:
 
     def getNumMineGuess(self):
         sum = 0
-        for guess in self.game.guess.values():
+        if SHARE_MAP:
+            g = self.game.guess.values()
+        else:
+            g = self.guess.values()
+        for guess in g:
             if guess > .5:
                 sum += 1
         return sum

@@ -98,7 +98,7 @@ class State:
     def punish(self, action_string):
         for action in action_string:
             n = self.actions.index(action)
-            print action, n, self.actions
+            #print action, n, self.actions
             self.rewards[n] = self.rewards[n] / 2.0
         
     def isMatch(self, array):
