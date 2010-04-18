@@ -26,30 +26,38 @@ from game import *
 from state import *
 from neural_network import *
 
-ALPHA = .3
+
+# FLOATING POINT NUMBERS BETWEEN 0 and 1
+THRESH = .18
+INITIAL = 1
+ALPHA = .5
 BETA = .1
-OPEN_MIND = 1
-HUG_EDGE = .999999999
+OPEN_MIND = 1 
+HUG_EDGE = 1
 BRN2GRN = 0
 GREED = 0
-EXPLORE = .7
-NUM_POS = 5
-MAX_MOVES = 10000
-MOVES_LEARNED = 500
-SPEED_MOVES = 5000
-SPEED_AMT = 1.00291 # increased threshold change
-CHANGE = 1.0000173 # normal threshold change
-THRESH = .16
-INITIAL = 1
+EXPLORE = 1
 TO_DIG = 1 # low numbers make digging difficult
 TO_FLAG = 1 # low numbers make flagging difficult
 TO_UNFLAG = 1 # low numbers make unflagging easy
+WEIGHT = .005
+ALLOW_REPEATS = 0 #percentage of repeats allowed
+
+# FLOATS LARGER THAN 1
+SPEED_AMT = 1.00191 # increased threshold change
+CHANGE = 1.000173 # normal threshold change
+
+# INTEGERS
+NUM_POS = 8
+MAX_MOVES = 42000
+MOVES_LEARNED = 4000
+SPEED_MOVES = 15000
 INPUT_GRID = 5
 OUTPUT_GRID = 3
-WEIGHT = .007
+
+# BOOLEAN
 SHARE_MAP = True
-RESET_MOVES = False
-ALLOW_REPEATS = False
+RESET_MOVES = False # do you want your move list to empty after each game?
 CHEAT = False
 
 ################################################################################
@@ -507,7 +515,8 @@ class Agent:
             ################################################################
             if found:
                 m = [self.input, self.target, self.max_in]
-                if ALLOW_REPEATS or m not in self.move_list:
+                if (random.random() < ALLOW_REPEATS or 
+                    m not in self.move_list):
                     self.move_list.append(m)
                     #print len(self.move_list)
                 if len(self.move_list) > MOVES_LEARNED:
@@ -589,12 +598,15 @@ class Agent:
     def learn(self):
         # go through each move and back propogate rewards
         index = 0
-        while index < len(self.move_list):
-            move = self.move_list[index % len(self.move_list)]
+        avg_num = 0
+        for index in range(len(self.move_list)):
+            move = self.move_list[index]
             self.nn.train(move[0], move[1],self.alpha, self.beta)
-            index += 1
+            avg_num += move[2]
+        avg_num /= float(len(self.move_list))
         self.alpha *= OPEN_MIND
         self.beta *= OPEN_MIND
+        print avg_num
         #print self.alpha, self.beta
         
     def reward(self, i, amt):

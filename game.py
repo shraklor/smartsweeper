@@ -22,7 +22,7 @@
 
 TORUS = False
 OPEN_FIRST = False# false to be able to lose on first click
-LOAD_NN = False
+LOAD_NN = True
 SAVE_NN = True
 SAVE_CSV = False
 ASCII_OUTPUT = False
