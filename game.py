@@ -21,8 +21,8 @@
 #       MA 02110-1301, USA.
 
 TORUS = False
-OPEN_FIRST = True# false to be able to lose on first click
-LOAD_NN = True
+OPEN_FIRST = False# false to be able to lose on first click
+LOAD_NN = False
 SAVE_NN = True
 SAVE_CSV = False
 ASCII_OUTPUT = False

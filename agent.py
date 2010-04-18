@@ -26,27 +26,30 @@ from game import *
 from state import *
 from neural_network import *
 
-ALPHA = .1
-BETA = .01
+ALPHA = .3
+BETA = .1
 OPEN_MIND = 1
-HUG_EDGE = .999
-GREED = 0.001
+HUG_EDGE = .999999999
+BRN2GRN = 0
+GREED = 0
+EXPLORE = .7
 NUM_POS = 5
-MAX_MOVES = 42000
-MOVES_LEARNED = 5000
-SPEED_MOVES = 8000
-SPEED_AMT = 1.00191 # increased threshold change
-CHANGE = 1.000173 # normal threshold change
-THRESH = .071
+MAX_MOVES = 10000
+MOVES_LEARNED = 500
+SPEED_MOVES = 5000
+SPEED_AMT = 1.00291 # increased threshold change
+CHANGE = 1.0000173 # normal threshold change
+THRESH = .16
 INITIAL = 1
-TO_DIG = .6
-TO_FLAG = 1
-TO_UNFLAG = .7
+TO_DIG = 1 # low numbers make digging difficult
+TO_FLAG = 1 # low numbers make flagging difficult
+TO_UNFLAG = 1 # low numbers make unflagging easy
 INPUT_GRID = 5
 OUTPUT_GRID = 3
-WEIGHT = .014
+WEIGHT = .007
 SHARE_MAP = True
 RESET_MOVES = False
+ALLOW_REPEATS = False
 CHEAT = False
 
 ################################################################################
@@ -59,13 +62,13 @@ class Agent:
         self.human = 0
         self.clearMoves()
         self.name2num_dict = {}
-        names = "f_012345678"
+        names = "012345678f_"
         self.in_size = len(names)
         for i in range(len(names)):
-            nodes = [0] * len(names)
+            nodes = ([0] * 11)
             nodes[i] = 1
             self.name2num_dict[names[i]] = nodes
-        a = (INPUT_GRID**2)*len(names)
+        a = (INPUT_GRID**2)*(11)
         b = OUTPUT_GRID**2
         self.nn = NeuralNet(a,a,b)
         self.cheat = CHEAT
@@ -79,7 +82,7 @@ class Agent:
     def clearMoves(self):
         self.num_moves = 0
         self.closed = []
-        self.thresh = INITIAL# * random.random()
+        self.thresh = INITIAL #* random.random()
         if self.human and self.game.draw_board:
             x, y = pygame.mouse.get_pos()
             if self.game.torus:
@@ -168,7 +171,7 @@ class Agent:
                 #print "unflag"
                 self.open(self.pos)
                 self.game.mark(self.pos)
-                self.thresh = THRESH * speed
+                #self.thresh = THRESH * speed
                 #self.wholeBoard()
             elif (out * TO_FLAG >= (1 - self.thresh) and name != "f"):
                 #print "flag"
@@ -208,14 +211,14 @@ class Agent:
                     brn = "012345678"
                     if (a in grn) and (self.game.board[pos] in brn):
                         possible.append(pos)
-                    #if ((a in brn) and
-                    #    (self.game.board[pos] in grn) and
-                    #    (pos in von_neumann)):
-                    #    possible.append(pos)
+                    if (random.random < BRN2GRN and (a in brn) and
+                        (self.game.board[pos] in grn) and
+                        (pos in von_neumann)):
+                        possible.append(pos)
                 except: pass
 
         # if this isn't possible, anywhere is fine
-        if len(possible) == 0:
+        if len(possible) == 0 or random.random < EXPLORE:
             possible = area
 
         # find the spot you've visited least
@@ -282,7 +285,7 @@ class Agent:
                 nodes = self.name2num_dict[name]
                 input += nodes
             except:
-                input += [0] * self.in_size
+                input += [0] * len(self.name2num_dict["0"])
         self.input = input
         self.max_in = max_in
         
@@ -302,13 +305,14 @@ class Agent:
         ################################################################
         # get output from neural net
         ################################################################
-        output = self.nn.getOut(input)
-        self.output = output
         # uncomment this to play perfectly (cheat)
         # for learning examples quicker
         if self.cheat:
             print "cheating"
             output = target
+        else: 
+            output = self.nn.getOut(input)
+        self.output = output
             
         
         certainty = sum(output)/float(len(output))
@@ -503,8 +507,8 @@ class Agent:
             ################################################################
             if found:
                 m = [self.input, self.target, self.max_in]
-                if m not in self.move_list:
-                    self.move_list.append(m)#, state, action_i])
+                if ALLOW_REPEATS or m not in self.move_list:
+                    self.move_list.append(m)
                     #print len(self.move_list)
                 if len(self.move_list) > MOVES_LEARNED:
                     #r = random.randint(0, len(self.move_list))
