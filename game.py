@@ -21,7 +21,7 @@
 #       MA 02110-1301, USA.
 
 TORUS = False
-OPEN_FIRST = False# false to be able to lose on first click
+OPEN_FIRST = True# false to be able to lose on first click
 LOAD_NN = True
 SAVE_NN = True
 SAVE_CSV = False
@@ -375,7 +375,7 @@ def main():
         w = 8
         h = 8
         m = 10
-        t = 32
+        t = 64
     if DIFF == 1:
         #print "MEDIUM - 16x16 w/ 40 mines"
         w = 16
@@ -582,7 +582,7 @@ def main():
             if DIFF_MINDS:
                 for agent in alist:
                     agent.learn()
-            else:
+            elif AGENTS != 1:
                 nn = alist[0].nn
                 for agent in alist:
                     agent.nn = nn
@@ -591,6 +591,8 @@ def main():
                 for agent in alist:
                     agent.nn = nn
                     agent.memory = alist[0].memory
+            else:
+                alist[0].learn()
 
         ################################################################
         # SAVE NN

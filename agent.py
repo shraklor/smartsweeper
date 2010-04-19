@@ -26,32 +26,34 @@ from game import *
 from state import *
 from neural_network import *
 
-
 # FLOATING POINT NUMBERS BETWEEN 0 and 1
-THRESH = .18
+VISITS = 0
+TRAIN_RULES = .9
+THRESH = .01
 INITIAL = 1
 ALPHA = .5
 BETA = .1
-OPEN_MIND = 1 
-HUG_EDGE = 1
+OPEN_MIND = 1
+HUG_EDGE = .9999
 BRN2GRN = 0
 GREED = 0
 EXPLORE = 1
-TO_DIG = 1 # low numbers make digging difficult
-TO_FLAG = 1 # low numbers make flagging difficult
-TO_UNFLAG = 1 # low numbers make unflagging easy
+TO_DIG = .6 # low numbers make digging difficult
+TO_FLAG = .9 # low numbers make flagging easy
+TO_UNFLAG = .5 # low numbers make unflagging easy
 WEIGHT = .005
 ALLOW_REPEATS = 0 #percentage of repeats allowed
+WHOLE_BOARD = 0 # pct of time the whole board is scanned
 
 # FLOATS LARGER THAN 1
-SPEED_AMT = 1.00191 # increased threshold change
-CHANGE = 1.000173 # normal threshold change
+SPEED_AMT = 1.01 # increased threshold change
+CHANGE = 1.001 # normal threshold change
 
 # INTEGERS
-NUM_POS = 8
+NUM_POS = 1
 MAX_MOVES = 42000
-MOVES_LEARNED = 4000
-SPEED_MOVES = 15000
+MOVES_LEARNED = 1000
+SPEED_MOVES = 12000
 INPUT_GRID = 5
 OUTPUT_GRID = 3
 
@@ -73,7 +75,7 @@ class Agent:
         names = "012345678f_"
         self.in_size = len(names)
         for i in range(len(names)):
-            nodes = ([0] * 11)
+            nodes = [0] * 11
             nodes[i] = 1
             self.name2num_dict[names[i]] = nodes
         a = (INPUT_GRID**2)*(11)
@@ -90,7 +92,7 @@ class Agent:
     def clearMoves(self):
         self.num_moves = 0
         self.closed = []
-        self.thresh = INITIAL #* random.random()
+        self.thresh = INITIAL# * random.random()
         if self.human and self.game.draw_board:
             x, y = pygame.mouse.get_pos()
             if self.game.torus:
@@ -163,7 +165,6 @@ class Agent:
             print "speeding up"
         if m > SPEED_MOVES:
             speed = SPEED_AMT
-        self.thresh *= CHANGE * speed
         if m == MAX_MOVES:
             print "giving up"
         if m < MAX_MOVES:
@@ -180,14 +181,14 @@ class Agent:
                 self.open(self.pos)
                 self.game.mark(self.pos)
                 #self.thresh = THRESH * speed
-                #self.wholeBoard()
-            elif (out * TO_FLAG >= (1 - self.thresh) and name != "f"):
+                if random.random() < WHOLE_BOARD: self.wholeBoard()
+            elif (out >= (1 - self.thresh) * TO_FLAG and name != "f"):
                 #print "flag"
                 self.close(self.pos)
                 self.game.mark(self.pos)
                 #self.visited[self.pos] += 5
                 self.thresh = THRESH * speed
-                #self.wholeBoard()
+                if random.random() < WHOLE_BOARD: self.wholeBoard()
 
         # if you've gone so many moves without ending the game, do it
         elif name == "f":
@@ -201,6 +202,13 @@ class Agent:
             pass#self.visited[(x,y)] += 10
 
     def simMove(self):
+        m = self.num_moves
+        speed = 1
+        if m == SPEED_MOVES:
+            print "speeding up"
+        if m > SPEED_MOVES:
+            speed = SPEED_AMT
+        self.thresh *= CHANGE * speed
         ############################################################
         # MOVEMENT
         ############################################################
@@ -254,13 +262,21 @@ class Agent:
         # and go to it
         else:
             self.pos = s[0]
-        #self.visited[self.pos] += 1
+        if random.random() < VISITS: self.visited[self.pos] += 1
 
     def scanMove(self):
         x, y = self.pos
         x = (x + 1) % self.game.width
         if x == 0:
             y = (y + 1) % self.game.height
+            if y == 0:
+                m = self.num_moves
+                speed = 1
+                if m == SPEED_MOVES:
+                    print "speeding up"
+                if m > SPEED_MOVES:
+                    speed = SPEED_AMT
+                self.thresh *= CHANGE * speed
         self.pos = (x, y)
         
     def wholeBoard(self):
@@ -301,14 +317,47 @@ class Agent:
         # this is not used to determine where to go or what to do
         # it is only used durring the learning phase
         target = []
+        mask = [] # rule based learning
+        s = 0
+        o = 0
         for i in range(len(self.area)):
             pos = self.area[i]
             try:
+                name = self.game.board[pos]
+                if name in "012345678":
+                    mask.append(0)
+                else: 
+                    mask.append(name)
+                    s += 1
                 num = self.game.mine_array[pos]
                 target.append(num)
             except:
+                o += 1
+                mask.append(0)
                 target.append(.5)
         self.target = target
+        
+        
+        center = 0
+        self.tile_done = True
+        try:
+            center = int(self.game.board[self.area[len(self.area)/2]])
+        except:
+            center = -1
+        if s == center and center != 0:
+            self.tile_done = True
+            for i in range(len(mask)):
+                if str(mask[i]) in "f_":
+                    mask[i] = 1
+            if random.random() < TRAIN_RULES:
+                self.nn.train(input, mask, self.alpha, self.beta)
+        if s + o == 9:
+            for i in range(len(mask)):
+                if str(mask[i]) in "f_":
+                    mask[i] = .5
+            if random.random() < TRAIN_RULES:
+                self.nn.train(input, mask, self.alpha, self.beta)
+     
 
         ################################################################
         # get output from neural net
@@ -316,18 +365,16 @@ class Agent:
         # uncomment this to play perfectly (cheat)
         # for learning examples quicker
         if self.cheat:
-            print "cheating"
-            output = target
-        else: 
-            output = self.nn.getOut(input)
+            self.nn.train(input, target, self.alpha, self.beta)
+        output = self.nn.getOut(input)
         self.output = output
             
         
-        certainty = sum(output)/float(len(output))
-        certainty = max(certainty, 1-certainty)
-        self.certainty[self.pos] = certainty
-        
+        num_mines = sum(output)
+        if self.tile_done:
+            weight = 1 - WEIGHT
         weight = WEIGHT
+        
         # update your guesses for whether or not a square has a mine
         for i in range(OUTPUT_GRID**2):
             try:
@@ -401,6 +448,8 @@ class Agent:
                                 pygame.quit ()
                                 break
                             if event.key == K_c:
+                                if self.cheat: print "not cheating"
+                                else: print "cheating"
                                 self.cheat = bool(1 - int(self.cheat))
                                 break
                             if event.key == K_g:
@@ -464,6 +513,8 @@ class Agent:
                             if event.key == K_h:
                                 self.switch()
                             if event.key == K_c:
+                                if self.cheat: print "not cheating"
+                                else: print "cheating"
                                 self.cheat = bool(1 - int(self.cheat))
                                 break
                             if event.key == K_g:
@@ -481,10 +532,10 @@ class Agent:
                             
 
                         found = True
-                #self.wholeBoard()
+                if random.random() < WHOLE_BOARD: self.wholeBoard()
                 self.threshClick()
                 self.getCertainty()
-                self.simMove()
+                self.scanMove()
                 '''
                 x, y = self.pos
 
@@ -520,9 +571,9 @@ class Agent:
                     self.move_list.append(m)
                     #print len(self.move_list)
                 if len(self.move_list) > MOVES_LEARNED:
-                    #r = random.randint(0, len(self.move_list))
-                    #self.move_list = self.move_list[:r] + self.move_list[r+1:]
-                    self.move_list = self.move_list[1:]
+                    r = random.randint(0, len(self.move_list))
+                    self.move_list = self.move_list[:r] + self.move_list[r+1:]
+                    #self.move_list = self.move_list[1:]
                 self.num_moves += 1
                 
             
@@ -606,7 +657,7 @@ class Agent:
         avg_num /= float(len(self.move_list))
         self.alpha *= OPEN_MIND
         self.beta *= OPEN_MIND
-        print avg_num
+        #print avg_num
         #print self.alpha, self.beta
         
     def reward(self, i, amt):
