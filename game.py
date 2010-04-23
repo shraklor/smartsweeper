@@ -20,23 +20,28 @@
 #       Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 #       MA 02110-1301, USA.
 
+# GAME CONSTANTS
 TORUS = False
-OPEN_FIRST = True# false to be able to lose on first click
+OPEN_FIRST = False # false to be able to lose on first click
 LOAD_NN = True
-SAVE_NN = True
-SAVE_CSV = False
+LOAD_ML = False
+SAVE_NN = False
+SAVE_ML = False
+SAVE_CSV = True
 ASCII_OUTPUT = False
-LEARN = True
+LEARN = False
 DRAW = True
 RECORD = False # this is really resource intensive
 HUMAN = False
-CHUNK = 500
+CHUNK = 100
 SAVE_CHUNK = 1
 SAVE_INT = 1
 OUTPUT_TEXT = "win_pct,sq_err,pct_cor,cleared,cor_digs,inc_digs,cor_flags,inc_flags\n"
 DIFF = 0
 DIFF_MINDS = False
 AGENTS = 1
+ML_NAME = "ml.obj"
+NN_NAME = "primed_nn.obj"
 
 import math, os, sys, platform, pickle, random
 if DRAW:
@@ -426,7 +431,7 @@ def main():
                     f.close()
                 except:
                     try:
-                        f = open(os.path.join("data","nn.obj"), "r")
+                        f = open(os.path.join("data",NN_NAME), "r")
                         alist[i].nn = pickle.load(f)
                         for agent in alist:
                             agent.nn = alist[i].nn
@@ -437,7 +442,7 @@ def main():
                         print "Couldn't load mind. Creating one."
         else:
             try:
-                f = open(os.path.join("data","nn.obj"), "r")
+                f = open(os.path.join("data",NN_NAME), "r")
                 alist[0].nn = pickle.load(f)
                 for agent in alist:
                     agent.nn = alist[0].nn
@@ -446,7 +451,21 @@ def main():
             except:
                 #print sys.exc_info()
                 print "Couldn't load mind. Creating one."
-
+                
+    ####################################################################
+    # load your move list
+    ####################################################################
+    if LOAD_ML:
+        for agent in alist:
+            try:
+                f = open(os.path.join("data",ML_NAME), "r")
+                agent.move_list = pickle.load(f)
+                print str(len(agent.move_list)) + " moves loaded."
+                f.close()
+            except:
+                #print sys.exc_info()
+                print "Couldn't load moves."
+       
     ####################################################################
     # create a log file
     ####################################################################
@@ -611,13 +630,26 @@ def main():
                             print "Couldn't save your neural network."
             else:
                 try:
-                    f = open(os.path.join("data","nn.obj"), "w")
+                    f = open(os.path.join("data",NN_NAME), "w")
                     pickle.dump(alist[0].nn, f)
                     print "Saving your neural network."
                     f.close()
                 except:
                     #pass
                     print "Couldn't save your neural network."
+
+        ################################################################
+        # SAVE MOVE LIST
+        ################################################################
+        if SAVE_ML and count % SAVE_INT == 0:
+            try:
+                f = open(os.path.join("data",ML_NAME), "w")
+                pickle.dump(alist[0].move_list, f)
+                print "Saved " + str(len(alist[0].move_list)) + " moves."
+                f.close()
+            except:
+                #pass
+                print "Couldn't save your moves."
 
         ################################################################
         # RESET BOARD
